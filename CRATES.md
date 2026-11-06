@@ -465,8 +465,10 @@ for collision in world.last_manifold().collisions.iter() {
 - `NavGrid`: 导航网格（2D 网格，可通过/障碍物，世界↔网格坐标转换，动态障碍物支持）
 - `AStarPathfinder`: A* 寻路算法（曼哈顿启发式，四连通）
 - `Path`/`PathFollower`: 路径与路径跟随器（支持路点导航、速度控制、移动方向计算）
+- `NavTriangle`/`NavGrid::retriangulate_dirty_region`: 动态重 triangulation，障碍物变化后重建受影响三角形
+- `CrowdAgent`/`CrowdManager`: Crowd 避让系统，基于斥力场的局部代理避让（ORCA 风格）
 
-**状态**: 🟡 75% 完成（行为树 + 感知高级特性 + A* 寻路 + 导航网格动态更新已实现）
+**状态**: 🟡 85% 完成（行为树 + 感知高级特性 + A* 寻路 + 导航网格动态更新 + Crowd 避让已实现）
 
 **模块**:
 - `BehaviorTree`: 行为树容器
@@ -479,7 +481,8 @@ for collision in world.last_manifold().collisions.iter() {
 - `builtin`: 内置 AI 行为节点
 - `PerceptionSystem`, `PerceptionComponent`: 感知系统与组件
 - `Stimulus`, `PerceptionResult`, `SenseType`, `SoundType`: 感知数据结构
-- `NavGrid`, `AStarPathfinder`, `Path`, `PathFollower`: 导航与寻路
+- `NavGrid`, `NavTriangle`, `AStarPathfinder`, `Path`, `PathFollower`: 导航与寻路
+- `CrowdAgent`, `CrowdManager`: Crowd 代理与避让管理器
 
 **使用示例**:
 ```rust

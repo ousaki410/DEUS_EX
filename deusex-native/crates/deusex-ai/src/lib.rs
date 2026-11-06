@@ -973,10 +973,11 @@ impl Default for PerceptionComponent {
 
 /// 感知系统：管理所有感知组件，处理视线和听觉检测.
 ///
-/// raycast_cb 是用户提供的射线检测回调，用于判断两点之间是否有遮挡.
-/// 回调参数：(origin, target) -> 是否有遮挡(true=有遮挡，false=无遮挡).
+/// raycast_cb 是用户提供的射线检测回调，用于判断两点之间的遮挡程度.
+/// 回调参数：(origin, target) -> 遮挡强度(0.0=无遮挡，1.0=完全遮挡).
+/// 多层遮挡时，回调应返回累积后的遮挡强度.
 pub struct PerceptionSystem<RaycastCb> {
-    /// 射线检测回调.
+    /// 射线检测回调，返回遮挡强度(0.0~1.0).
     raycast_cb: RaycastCb,
     /// 当前帧的感知结果.
     results: Vec<PerceptionResult>,
@@ -986,7 +987,7 @@ pub struct PerceptionSystem<RaycastCb> {
 
 impl<RaycastCb> PerceptionSystem<RaycastCb>
 where
-    RaycastCb: Fn([f32; 3], [f32; 3]) -> bool,
+    RaycastCb: Fn([f32; 3], [f32; 3]) -> f32,
 {
     /// 创建感知系统.
     pub fn new(raycast_cb: RaycastCb) -> Self {
@@ -1082,44 +1083,16 @@ where
             }
         }
 
-        // 4. 多点遮挡检测：检查目标的多个采样点，部分遮挡时降低置信度.
-        if perceiver.enable_multi_point_occlusion && perceiver.occlusion_sample_count > 1 {
-            let sample_count = perceiver.occlusion_sample_count as f32;
-            let mut visible_samples = 0.0;
-
-            // 在目标位置周围生成采样点网格（简单的 3x3 网格，基于目标大小假设 1 米）.
-            let sample_size = 0.5;
-            let offset_range = sample_size * 0.5;
-            for i in 0..perceiver.occlusion_sample_count {
-                for j in 0..perceiver.occlusion_sample_count {
-                    let offset_x = (i as f32 - sample_count * 0.5 + 0.5) / sample_count * offset_range * 2.0;
-                    let offset_z = (j as f32 - sample_count * 0.5 + 0.5) / sample_count * offset_range * 2.0;
-                    let sample_pos = [
-                        stimulus.position[0] + offset_x,
-                        stimulus.position[1],
-                        stimulus.position[2] + offset_z,
-                    ];
-                    if !(self.raycast_cb)(perceiver.position, sample_pos) {
-                        visible_samples += 1.0;
-                    }
-                }
-            }
-
-            let total_samples = (perceiver.occlusion_sample_count * perceiver.occlusion_sample_count) as f32;
-            let occlusion_factor = visible_samples / total_samples;
-
-            // 如果完全被遮挡，返回 None.
-            if occlusion_factor <= 0.0 {
-                return None;
-            }
-
-            confidence *= occlusion_factor;
-        } else if (self.raycast_cb)(perceiver.position, stimulus.position) {
-            // 单点遮挡检测：完全被遮挡.
+        // 4. 多层遮挡检测：射线检测返回遮挡强度(0~1)，遮挡越强置信度越低.
+        //    如果完全遮挡(强度>=1.0)，直接返回 None.
+        let occlusion = (self.raycast_cb)(perceiver.position, stimulus.position);
+        if occlusion >= 1.0 {
             return None;
         }
+        // 遮挡强度降低置信度：置信度 *= (1 - occlusion * 0.8)，最大降低 80%
+        confidence *= 1.0 - occlusion.clamp(0.0, 1.0) * 0.8;
 
-        // 4. 距离梯度置信度：越近置信度越高.
+        // 5. 距离梯度置信度：越近置信度越高.
         let distance_confidence = (1.0 - dist / max_dist).clamp(0.0, 1.0);
         confidence *= distance_confidence;
 
@@ -1150,13 +1123,22 @@ where
         let attenuation = stimulus.sound_type.attenuation_coefficient();
         let intensity = stimulus.strength / (1.0 + dist * dist * attenuation);
 
-        // 3. 障碍物遮挡衰减：如果被遮挡，额外降低强度（声音可穿透但会衰减）.
-        let mut occlusion_factor = 1.0;
-        if (self.raycast_cb)(perceiver.position, stimulus.position) {
-            // 声音被墙壁遮挡，额外衰减 50%-80%.
-            occlusion_factor = 0.3;
-        }
+        // 3. 障碍物遮挡衰减：声音被遮挡时额外降低强度（声音可穿透但会衰减）.
+        let occlusion = (self.raycast_cb)(perceiver.position, stimulus.position);
+        let occlusion_factor = 1.0 - occlusion.clamp(0.0, 1.0) * 0.7; // 遮挡最多降低 70%
         let intensity = intensity * occlusion_factor;
+
+        // 4. 听觉空间化：基于声源相对位置计算左右声道差异（ILD）.
+        //    声源在侧方时，侧耳音量降低，模拟头部遮挡效应.
+        let to_stim = (stim_pos - perp_pos).normalize();
+        let fwd = glam::Vec3::from_array(perceiver.forward).normalize();
+        let right = fwd.cross(glam::Vec3::Y).normalize();
+        let fwd_dot = to_stim.dot(fwd);
+        let right_dot = to_stim.dot(right);
+        let azimuth = right_dot.atan2(fwd_dot); // -PI..PI，正值在右侧
+        let ild = (azimuth.abs() / std::f32::consts::PI).clamp(0.0, 1.0);
+        let spatial_factor = 1.0 - ild * 0.4; // 侧方声音最多降低 40%
+        let intensity = intensity * spatial_factor;
 
         // 4. 强度阈值检查.
         let threshold = perceiver.config.hear_threshold;
@@ -1189,6 +1171,17 @@ pub struct NavNode {
     pub walkable: bool,
 }
 
+/// 导航网格三角形：三个网格单元索引组成的三角形，用于路径平滑和重 triangulation.
+#[derive(Debug, Clone, Copy)]
+pub struct NavTriangle {
+    /// 三个顶点的网格坐标.
+    pub a: (i32, i32),
+    pub b: (i32, i32),
+    pub c: (i32, i32),
+    /// 三角形中心点(世界空间).
+    pub center: [f32; 2],
+}
+
 /// 导航网格：简单的 2D 网格地图.
 #[derive(Debug, Clone)]
 pub struct NavGrid {
@@ -1197,21 +1190,29 @@ pub struct NavGrid {
     nodes: Vec<bool>, // true=可通过，false=障碍
     cell_size: f32,
     origin: [f32; 2], // 网格原点(世界空间 X,Z)
-    /// 动态障碍物更新：脏区域集合（网格坐标），用于路径失效检测.
+    /// 三角形网格：用于路径平滑和动态重 triangulation.
+    triangles: Vec<NavTriangle>,
+    /// 动态障碍物更新：脏区域集合（网格坐标），用于路径失效检测和重 triangulation.
     dirty_regions: Vec<(i32, i32)>,
+    /// 脏三角形集合：需要重新计算的三角形索引.
+    dirty_triangles: Vec<usize>,
 }
 
 impl NavGrid {
     /// 创建导航网格.
     pub fn new(width: i32, height: i32, cell_size: f32, origin: [f32; 2]) -> Self {
-        Self {
+        let mut grid = Self {
             width,
             height,
             nodes: vec![true; (width * height) as usize],
             cell_size,
             origin,
+            triangles: Vec::new(),
             dirty_regions: Vec::new(),
-        }
+            dirty_triangles: Vec::new(),
+        };
+        grid.build_triangulation();
+        grid
     }
 
     /// 设置指定网格单元为障碍物.
@@ -1230,6 +1231,113 @@ impl NavGrid {
         if !self.dirty_regions.contains(&(x, y)) {
             self.dirty_regions.push((x, y));
         }
+        // 标记受影响区域的三角形为脏三角形，需要重 triangulation.
+        self.mark_triangles_dirty_around(x, y);
+    }
+
+    /// 标记给定网格单元周围的三角形为脏三角形.
+    fn mark_triangles_dirty_around(&mut self, cx: i32, cy: i32) {
+        // 找到包含 (cx, cy) 作为顶点的三角形并标记为脏.
+        for (i, tri) in self.triangles.iter().enumerate() {
+            if tri.a == (cx, cy) || tri.b == (cx, cy) || tri.c == (cx, cy) {
+                if !self.dirty_triangles.contains(&i) {
+                    self.dirty_triangles.push(i);
+                }
+            }
+            // 也标记三角形边界内的相邻三角形.
+            let min_x = tri.a.0.min(tri.b.0).min(tri.c.0);
+            let max_x = tri.a.0.max(tri.b.0).max(tri.c.0);
+            let min_y = tri.a.1.min(tri.b.1).min(tri.c.1);
+            let max_y = tri.a.1.max(tri.b.1).max(tri.c.1);
+            if cx >= min_x - 1 && cx <= max_x + 1 && cy >= min_y - 1 && cy <= max_y + 1 {
+                if !self.dirty_triangles.contains(&i) {
+                    self.dirty_triangles.push(i);
+                }
+            }
+        }
+    }
+
+    /// 构建初始三角形网格：将每个 2x2 网格单元分割为两个三角形.
+    fn build_triangulation(&mut self) {
+        self.triangles.clear();
+        for y in 0..self.height.saturating_sub(1) {
+            for x in 0..self.width.saturating_sub(1) {
+                // 只有当四个角都可通过时才创建三角形.
+                if self.is_walkable(x, y)
+                    && self.is_walkable(x + 1, y)
+                    && self.is_walkable(x, y + 1)
+                    && self.is_walkable(x + 1, y + 1)
+                {
+                    let a = (x, y);
+                    let b = (x + 1, y);
+                    let c = (x, y + 1);
+                    let d = (x + 1, y + 1);
+                    // 分割为两个三角形: (a,b,c) 和 (b,d,c).
+                    let center_a = self.triangle_center(a, b, c);
+                    let center_b = self.triangle_center(b, d, c);
+                    self.triangles.push(NavTriangle {
+                        a,
+                        b,
+                        c,
+                        center: center_a,
+                    });
+                    self.triangles.push(NavTriangle {
+                        a: b,
+                        b: d,
+                        c,
+                        center: center_b,
+                    });
+                }
+            }
+        }
+    }
+
+    /// 计算三角形中心点(世界空间).
+    fn triangle_center(&self, a: (i32, i32), b: (i32, i32), c: (i32, i32)) -> [f32; 2] {
+        let wa = self.grid_to_world(a.0, a.1);
+        let wb = self.grid_to_world(b.0, b.1);
+        let wc = self.grid_to_world(c.0, c.1);
+        [
+            (wa[0] + wb[0] + wc[0]) / 3.0,
+            (wa[1] + wb[1] + wc[1]) / 3.0,
+        ]
+    }
+
+    /// 重 triangulation 脏区域：重新计算受脏三角形影响的三角形网格.
+    ///
+    /// 在障碍物动态更新后调用，以保持三角形网格与导航网格同步.
+    /// 返回重 triangulation 的三角形数量.
+    pub fn retriangulate_dirty_region(&mut self) -> usize {
+        if self.dirty_triangles.is_empty() {
+            return 0;
+        }
+
+        // 重建整个三角形网格，确保与当前导航网格状态同步.
+        self.build_triangulation();
+
+        let count = self.dirty_triangles.len();
+        self.dirty_triangles.clear();
+        count
+    }
+
+    /// 返回三角形数量.
+    pub fn triangle_count(&self) -> usize {
+        self.triangles.len()
+    }
+
+    /// 返回脏三角形数量（待重 triangulation）.
+    pub fn dirty_triangle_count(&self) -> usize {
+        self.dirty_triangles.len()
+    }
+
+    /// 返回指定索引的三角形.
+    pub fn get_triangle(&self, index: usize) -> Option<&NavTriangle> {
+        self.triangles.get(index)
+    }
+
+    /// 返回所有三角形的迭代器.
+    pub fn triangles(&self) -> impl Iterator<Item = &NavTriangle> {
+        self.triangles.iter()
     }
 
     /// 设置矩形区域为障碍物（动态障碍物支持）.
@@ -1571,7 +1679,7 @@ mod perception_tests {
 
     #[test]
     fn vision_senses_unobstructed_target() {
-        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| false; // 无遮挡
+        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| 0.0; // 无遮挡
         let mut system = PerceptionSystem::new(raycast_cb);
         system.set_timestamp(100.0);
 
@@ -1598,7 +1706,7 @@ mod perception_tests {
 
     #[test]
     fn vision_blocked_by_occlusion() {
-        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| true; // 总是有遮挡
+        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| 1.0; // 总是有遮挡
         let mut system = PerceptionSystem::new(raycast_cb);
 
         let perceiver = PerceptionComponent {
@@ -1622,7 +1730,7 @@ mod perception_tests {
 
     #[test]
     fn hearing_senses_loud_sound() {
-        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| false;
+        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| 0.0;
         let mut system = PerceptionSystem::new(raycast_cb);
 
         let perceiver = PerceptionComponent {
@@ -1698,7 +1806,7 @@ mod perception_tests {
     #[test]
     fn vision_fov_edge_falloff() {
         // 创建一个在 FOV 边缘的目标，启用 FOV 边缘衰减
-        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| false; // 无遮挡
+        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| 0.0; // 无遮挡
         let mut system = PerceptionSystem::new(raycast_cb);
         system.set_timestamp(100.0);
 
@@ -1741,7 +1849,11 @@ mod perception_tests {
             let dx = target[0] - origin[0];
             let dz = target[2] - origin[2];
             let dist = (dx * dx + dz * dz).sqrt();
-            dist > 2.0 && dist < 8.0 // 中间距离被遮挡
+            if dist > 2.0 && dist < 8.0 {
+                1.0 // 中间距离被遮挡
+            } else {
+                0.0
+            }
         };
         let mut system = PerceptionSystem::new(raycast_cb);
 
@@ -1768,7 +1880,7 @@ mod perception_tests {
 
     #[test]
     fn hearing_inverse_square_law() {
-        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| false; // 无遮挡
+        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| 0.0; // 无遮挡
         let mut system = PerceptionSystem::new(raycast_cb);
 
         let perceiver = PerceptionComponent {
@@ -1797,7 +1909,7 @@ mod perception_tests {
 
     #[test]
     fn hearing_sound_type_difference() {
-        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| false;
+        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| 0.0;
         let mut system = PerceptionSystem::new(raycast_cb);
 
         let perceiver = PerceptionComponent {
@@ -1822,7 +1934,7 @@ mod perception_tests {
     #[test]
     fn hearing_occlusion_attenuation() {
         // 有遮挡时听觉强度应降低
-        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| true; // 有遮挡
+        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| 1.0; // 有遮挡
         let mut system = PerceptionSystem::new(raycast_cb);
 
         let perceiver = PerceptionComponent {
@@ -1919,6 +2031,327 @@ mod perception_tests {
         // 清除后应能找到路径
         let path = AStarPathfinder::find_path(&grid, (0, 0), (4, 4));
         assert!(path.is_some());
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Crowd 避让：基于斥力场的局部代理避让
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// 代理状态：位置、速度、半径等.
+#[derive(Debug, Clone, Copy)]
+pub struct CrowdAgentState {
+    /// 当前位置(世界空间 X,Z).
+    pub pos: [f32; 2],
+    /// 当前速度(世界空间 X,Z).
+    pub vel: [f32; 2],
+    /// 代理半径(米).
+    pub radius: f32,
+    /// 最大速度(米/秒).
+    pub max_speed: f32,
+    /// 偏好速度(目标方向 * 速度).
+    pub pref_vel: [f32; 2],
+}
+
+/// 单个 Crowd 代理.
+#[derive(Debug, Clone)]
+pub struct CrowdAgent {
+    pub id: usize,
+    pub state: CrowdAgentState,
+}
+
+impl CrowdAgent {
+    pub fn new(id: usize, pos: [f32; 2], radius: f32, max_speed: f32) -> Self {
+        Self {
+            id,
+            state: CrowdAgentState {
+                pos,
+                vel: [0.0, 0.0],
+                radius,
+                max_speed,
+                pref_vel: [0.0, 0.0],
+            },
+        }
+    }
+
+    /// 设置偏好速度（目标方向）。
+    pub fn set_pref_vel(&mut self, pref_vel: [f32; 2]) {
+        self.state.pref_vel = pref_vel;
+    }
+
+    /// 应用计算后的新速度.
+    pub fn apply_velocity(&mut self, new_vel: [f32; 2]) {
+        self.state.vel = new_vel;
+        // 限制最大速度.
+        let speed = (new_vel[0].powi(2) + new_vel[1].powi(2)).sqrt();
+        if speed > self.state.max_speed {
+            let scale = self.state.max_speed / speed;
+            self.state.vel = [new_vel[0] * scale, new_vel[1] * scale];
+        }
+    }
+
+    /// 根据当前速度更新位置.
+    pub fn integrate(&mut self, dt: f32) {
+        self.state.pos[0] += self.state.vel[0] * dt;
+        self.state.pos[1] += self.state.vel[1] * dt;
+    }
+}
+
+/// Crowd 管理器：管理多个代理，应用局部避让（基于简单的斥力场）.
+///
+/// 使用简化的 ORCA 风格避让：每个代理计算与邻居的相对速度，
+/// 并调整自己的速度以避免碰撞。
+pub struct CrowdManager {
+    agents: Vec<CrowdAgent>,
+    /// 时间步长(秒).
+    pub dt: f32,
+    /// 邻居搜索半径(米).
+    pub neighbor_radius: f32,
+    /// 避让权重(0.0~1.0，越高越倾向于避让而非朝向目标).
+    pub avoidance_weight: f32,
+}
+
+impl CrowdManager {
+    /// 创建 crowd 管理器.
+    pub fn new() -> Self {
+        Self {
+            agents: Vec::new(),
+            dt: 0.016, // 60 FPS
+            neighbor_radius: 5.0,
+            avoidance_weight: 0.5,
+        }
+    }
+
+    /// 添加代理.
+    pub fn add_agent(&mut self, agent: CrowdAgent) -> usize {
+        let id = self.agents.len();
+        self.agents.push(agent);
+        id
+    }
+
+    /// 返回代理数量.
+    pub fn agent_count(&self) -> usize {
+        self.agents.len()
+    }
+
+    /// 返回指定代理的不可变引用.
+    pub fn get_agent(&self, id: usize) -> Option<&CrowdAgent> {
+        self.agents.get(id)
+    }
+
+    /// 返回指定代理的可变引用.
+    pub fn get_agent_mut(&mut self, id: usize) -> Option<&mut CrowdAgent> {
+        self.agents.get_mut(id)
+    }
+
+    /// 执行一帧 crowd 避让模拟.
+    ///
+    /// 对每对邻近代理计算斥力，调整速度以避免碰撞，
+    /// 然后更新所有代理位置.
+    pub fn update(&mut self) {
+        let n = self.agents.len();
+
+        // 第一阶段：计算每个代理的避让调整后的速度.
+        let mut new_vels: Vec<[f32; 2]> = vec![[0.0, 0.0]; n];
+
+        for i in 0..n {
+            let agent_i = &self.agents[i];
+            let pos_i = agent_i.state.pos;
+            let vel_i = agent_i.state.vel;
+            let pref_vel = agent_i.state.pref_vel;
+            let radius_i = agent_i.state.radius;
+
+            let mut avoid_vel = [0.0, 0.0];
+            let mut neighbor_count = 0;
+
+            for j in 0..n {
+                if i == j {
+                    continue;
+                }
+                let agent_j = &self.agents[j];
+                let pos_j = agent_j.state.pos;
+                let vel_j = agent_j.state.vel;
+                let radius_j = agent_j.state.radius;
+
+                let dx = pos_j[0] - pos_i[0];
+                let dz = pos_j[1] - pos_i[1];
+                let dist_sq = dx * dx + dz * dz;
+                let min_dist = radius_i + radius_j;
+
+                if dist_sq < self.neighbor_radius * self.neighbor_radius && dist_sq > 0.001 {
+                    let dist = dist_sq.sqrt();
+                    // 如果代理过近，计算排斥速度.
+                    if dist < min_dist {
+                        let overlap = min_dist - dist;
+                        let inv_dist = 1.0 / dist;
+                        let repel_x = dx * inv_dist * overlap;
+                        let repel_z = dz * inv_dist * overlap;
+                        avoid_vel[0] += repel_x;
+                        avoid_vel[1] += repel_z;
+
+                        // 相对速度调整：如果邻居正向我们移动，增加避让力.
+                        let rel_vel_x = vel_i[0] - vel_j[0];
+                        let rel_vel_z = vel_i[1] - vel_j[1];
+                        let rel_vel_along = rel_vel_x * dx * inv_dist + rel_vel_z * dz * inv_dist;
+                        if rel_vel_along > 0.0 {
+                            // 正在靠近，增加避让.
+                            avoid_vel[0] += rel_vel_x * 0.5;
+                            avoid_vel[1] += rel_vel_z * 0.5;
+                        }
+                        neighbor_count += 1;
+                    }
+                }
+            }
+
+            // 如果有邻居，平均避让速度.
+            if neighbor_count > 0 {
+                avoid_vel[0] /= neighbor_count as f32;
+                avoid_vel[1] /= neighbor_count as f32;
+            }
+
+            // 结合偏好速度和避让速度.
+            let combined_x = pref_vel[0] * (1.0 - self.avoidance_weight)
+                + avoid_vel[0] * self.avoidance_weight;
+            let combined_z = pref_vel[1] * (1.0 - self.avoidance_weight)
+                + avoid_vel[1] * self.avoidance_weight;
+
+            new_vels[i] = [combined_x, combined_z];
+        }
+
+        // 第二阶段：应用新速度并更新位置.
+        for i in 0..n {
+            let agent = self.agents.get_mut(i).unwrap();
+            agent.apply_velocity(new_vels[i]);
+            agent.integrate(self.dt);
+        }
+    }
+
+    /// 设置时间步长.
+    pub fn set_dt(&mut self, dt: f32) {
+        self.dt = dt;
+    }
+
+    /// 设置邻居搜索半径.
+    pub fn set_neighbor_radius(&mut self, radius: f32) {
+        self.neighbor_radius = radius;
+    }
+
+    /// 设置避让权重.
+    pub fn set_avoidance_weight(&mut self, weight: f32) {
+        self.avoidance_weight = weight.clamp(0.0, 1.0);
+    }
+
+    /// 返回所有代理的位置切片.
+    pub fn positions(&self) -> Vec<[f32; 2]> {
+        self.agents.iter().map(|a| a.state.pos).collect()
+    }
+}
+
+impl Default for CrowdManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod crowd_tests {
+    use super::*;
+
+    #[test]
+    fn crowd_agents_avoid_each_other() {
+        let mut mgr = CrowdManager::new();
+        mgr.set_dt(0.1);
+        mgr.set_avoidance_weight(1.0); // 完全避让
+
+        // 两个代理相向而行，应该互相避让.
+        let mut a1 = CrowdAgent::new(0, [-2.0, 0.0], 0.5, 2.0);
+        a1.set_pref_vel([2.0, 0.0]); // 向右移动
+        mgr.add_agent(a1);
+
+        let mut a2 = CrowdAgent::new(1, [2.0, 0.0], 0.5, 2.0);
+        a2.set_pref_vel([-2.0, 0.0]); // 向左移动
+        mgr.add_agent(a2);
+
+        // 多步模拟，代理不应该碰撞（距离应始终大于两个半径之和）.
+        for _ in 0..20 {
+            mgr.update();
+        }
+
+        let pos1 = mgr.get_agent(0).unwrap().state.pos;
+        let pos2 = mgr.get_agent(1).unwrap().state.pos;
+        let dx = pos1[0] - pos2[0];
+        let dz = pos1[1] - pos2[1];
+        let dist = (dx * dx + dz * dz).sqrt();
+        let min_dist = 1.0; // 0.5 + 0.5
+
+        // 代理不应该重叠（距离应大于最小距离）.
+        assert!(
+            dist > min_dist * 0.5,
+            "代理碰撞：距离={:.2}, 最小距离={:.2}",
+            dist,
+            min_dist * 0.5
+        );
+    }
+
+    #[test]
+    fn crowd_agents_reach_target() {
+        let mut mgr = CrowdManager::new();
+        mgr.set_dt(0.1);
+        mgr.set_avoidance_weight(0.2); // 低避让，主要朝向目标
+
+        let mut agent = CrowdAgent::new(0, [0.0, 0.0], 0.3, 5.0);
+        agent.set_pref_vel([5.0, 0.0]); // 向右移动
+        mgr.add_agent(agent);
+
+        // 多步模拟，代理应该向右移动.
+        for _ in 0..10 {
+            mgr.update();
+        }
+
+        let pos = mgr.get_agent(0).unwrap().state.pos;
+        assert!(pos[0] > 0.0, "代理应向右移动，当前位置={:.2}", pos[0]);
+    }
+
+    #[test]
+    fn navgrid_retriangulation() {
+        let mut grid = NavGrid::new(10, 10, 1.0, [0.0, 0.0]);
+
+        let initial_count = grid.triangle_count();
+        assert!(initial_count > 0, "应有初始三角形");
+
+        // 设置一个障碍物，触发脏三角形.
+        grid.set_obstacle(5, 5, true);
+        assert!(grid.dirty_triangle_count() > 0, "应有脏三角形");
+
+        // 重 triangulation 后，脏三角形应被清除.
+        let retri_count = grid.retriangulate_dirty_region();
+        assert!(retri_count > 0, "应重 triangulation 一些三角形");
+        assert_eq!(
+            grid.dirty_triangle_count(),
+            0,
+            "重 triangulation 后脏三角形应为 0"
+        );
+
+        // 三角形总数应该发生变化（因为障碍物阻挡了某些三角形）.
+        let new_count = grid.triangle_count();
+        assert!(new_count <= initial_count, "添加障碍物后三角形数量不应增加");
+    }
+
+    #[test]
+    fn navgrid_rect_circle_obstacle_triggers_retriangulation() {
+        let mut grid = NavGrid::new(10, 10, 1.0, [0.0, 0.0]);
+
+        // 矩形障碍物.
+        grid.set_rect_obstacle([2.0, 2.0], [4.0, 4.0], true);
+        assert!(grid.dirty_triangle_count() > 0);
+        grid.retriangulate_dirty_region();
+        assert_eq!(grid.dirty_triangle_count(), 0);
+
+        // 圆形障碍物.
+        grid.set_circle_obstacle([7.0, 7.0], 1.5, true);
+        assert!(grid.dirty_triangle_count() > 0);
+        grid.retriangulate_dirty_region();
+        assert_eq!(grid.dirty_triangle_count(), 0);
     }
 }
 
