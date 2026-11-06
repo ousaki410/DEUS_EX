@@ -9,3 +9,4 @@ license = "MIT"
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+glam = { workspace = true }

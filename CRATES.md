@@ -342,6 +342,66 @@ if mgr.is_action_down(InputAction::MoveForward, &input_state) {
 
 ---
 
+### deusex-physics
+
+**职责**: 3D 刚体物理引擎
+
+**主要功能**:
+- `PhysicsWorld`: 物理世界，固定步长模拟（默认 60Hz，可配置子步数）
+- `RigidBody`: 刚体（位置、速度、质量、力累加器、弹性/摩擦系数、静态/动态）
+- `ColliderShape`: 球体（Sphere）、AABB、无限平面（Plane）三种碰撞体形状
+- 广阶段：AABB 包围盒剔除
+- 窄阶段：球体-球体、AABB-AABB、球体-AABB、球体-平面、AABB-平面碰撞检测
+- 碰撞响应：基于冲量的法向+摩擦解算、位置校正（防止下陷/穿模）
+- 欧拉积分速度/位置，重力、速度剪裁（防止隧道效应）
+- `CharacterController`: 角色控制器（WASD 移动、跳跃、重力、地面检测）
+
+**状态**: 🟡 50% 完成（基础刚体物理与角色控制器已实现，等待约束/关节/软体等高级特性）
+
+**模块**:
+- `PhysicsWorld`: 物理世界与步进模拟
+- `RigidBody`, `BodyId`: 刚体与句柄
+- `ColliderShape`: 碰撞体形状枚举
+- `Collision`: 碰撞检测结果（法线、穿深、接触点）
+- `CollisionManifold`: 单帧碰撞集合
+- `PhysicsConfig`: 物理配置（重力、时间步长、子步数等）
+- `CharacterController`: 角色控制器
+
+**使用示例**:
+```rust
+use deusex_physics::{PhysicsWorld, RigidBody, BodyId, CharacterController, ColliderShape};
+
+let mut world = PhysicsWorld::default();
+
+// 添加地面平面
+let floor_id = world.add_body(RigidBody::plane(BodyId::null(), glam::Vec3::Y, 0.0));
+
+// 添加一个球体
+let ball_id = world.add_body(RigidBody::sphere(
+    BodyId::null(),
+    glam::Vec3::new(0.0, 10.0, 0.0),
+    1.0,
+    1.0,
+));
+
+// 创建角色控制器
+let mut cc = CharacterController::new(ball_id, 0.5, 1.8);
+
+// 物理步进
+world.step();
+
+// 角色控制（需要可变访问 world）
+cc.set_move_input(glam::Vec3::new(1.0, 0.0, 0.0));
+cc.update(&mut world, 1.0 / 60.0);
+
+// 查询碰撞结果
+for collision in world.last_manifold().collisions.iter() {
+    println!("碰撞: {:?} 与 {:?}, 穿深: {}", collision.body_a, collision.body_b, collision.penetration);
+}
+```
+
+---
+
 ## 🎮 游戏逻辑
 
 ### deusex-game
