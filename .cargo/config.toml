@@ -1,0 +1,13 @@
+[cargo]
+# Cargo 配置文件
+rust-version = "1.80"
+registry = "https://github.com/rust-lang/crates.io-index"
+
+[unstable]
+# 启用 unstable 特性
+build-std = true
+build-std-features = ["std"]
+
+[build]
+# 构建配置
+target-dir = "target"

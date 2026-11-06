@@ -1,0 +1,196 @@
+# Deus Ex Native - 项目进度追踪
+
+## 📋 项目概述
+
+**Deus Ex GOTY / Revision** 的原生 Linux 移植项目（Rust 实现），基于 Unreal Engine 1 的游戏逻辑还原。
+
+- **状态**: 🟡 基础框架完成，核心功能待实现
+- **代码量**: ~13,302 行 Rust 代码
+- **构建依赖**: Cargo nightly
+
+---
+
+## 🎯 开发目标
+
+### ✅ Phase 1 - 核心引擎基础（已完成）
+
+| 模块 | 代码行数 | 完成度 | 说明 |
+|------|---------|--------|------|
+| `deusex-bytecode` | 2,445 | ✅ 100% | UnrealScript 字节码解析器、CFG 构建函数反编译器 |
+| `deusex-vm` | 4,455 | ✅ 100% | 虚拟机直接执行原始字节码（支持跳转、latent CALL、switch） |
+| `deusex-package` | 1,421 | ✅ 100% | UE1 包格式读写工具（名称表、导入/导出表、属性系统） |
+| `deusex-codegen` | 1,180 | ✅ 90% | 将 Decompiled AST 生成 Rust scaffolds（部分 control flow 仅用注释标记） |
+| `deusex-ast` | 363 | ⚠️ 80% | AST 类型定义（部分表达式/语句待补充） |
+| `deusex-launcher` | 270 | ✅ 100% | 双模式启动器（静默检测 + GUI 引擎入口点） |
+| `deusex-runtime` | 1,881 | ✅ 70% | 运行时系统（反射、GC、属性系统、world tick、latent 处理） |
+
+### 🚧 Phase 2 - 媒体子系统（进行中）
+
+| 模块 | 代码行数 | 完成度 | 说明 |
+|------|---------|--------|------|
+| `deusex-renderer` | 188 | 🟡 40% | wgpu 渲染管线框架、GPU 初始化、窗口收集 |
+| `deusex-audio` | 77 | 🟡 30% | OpenAL API 声音后端框架 |
+| `deusex-physics` | 4 | ⚪ 0% | 占位（待实现） |
+
+### ⏳ Phase 3 - 游戏逻辑待开发
+
+| 模块 | 代码行数 | 完成度 | 说明 |
+|------|---------|--------|------|
+| `deusex-game` | 4 | ⚪ 0% | 占位（Gooey Game Loop、Tick、UI 渲染） |
+| `deusex-ai` | 4 | ⚪ 0% | 占位（AI 行为树、移动寻路、交互） |
+| `deusex-input` | 108 | 🟡 70% | SDL3 输入处理框架 |
+
+---
+
+## 🔧 已实现的核心功能
+
+### 1️⃣ Bytecode 执行系统
+
+- ✅ 解析 UnrealScript 字节码至 AST
+- ✅ 虚拟机直接执行 bytecode（无需反编译）
+- ✅ 支持跳转、调用、switch case、latent CALL 等控制流指令
+- ✅ 完整的值类型系统（Int/Float/Bool/String/Name/Byte/Vector/Rotator/Color/Object）
+- 📝 示例：`examples/run_script.rs` 可加载和执行 `.u` 脚本
+
+### 2️⃣ UE1 资源系统
+
+- ✅ 包格式解析（.u/.uax/.ukx/.ut）
+- ✅ 名称表与导入/导出表映射
+- ✅ 属性序列化（多种 Unreal 属性类型：Object/Int/Array/String/Vector/Rotator/Color）
+- ✅ GC（垃圾回收）框架
+- ✅ 反射系统（class 注册、UObject 创建）
+
+### 3️⃣ 双模式启动器
+
+- 🎮 **资源检测模式**（`--no-feature gui`）:
+  - 自动检测 GOTY / Revision 安装路径
+  - 统计 `.u` 包数量
+- 🎨 **引擎入口点**（`--features gui`）:
+  - SDL3 窗口 + wgpu 渲染设备
+  - OpenAL 音频后端
+  - 异步 main loop（Tokio::main）
+
+---
+
+## ⏳ 未实现的关键功能（优先级排序）
+
+| 优先级 | 功能 | 模块 | 估算工时 |
+|--------|------|------|---------|
+| 🔴 P0 | 渲染闭环与窗口绘制 | `deusex-renderer` | 4-6h |
+| 🔴 P0 | GUI 模式黑客键盘绑定与 UI 渲染 | `deusex-input` + UI 系统 | 3-5h |
+| 🟠 P1 | 游戏主循环与 Tick | `deusex-game` | 4-6h |
+| 🟠 P1 | 场景渲染管线 | `deusex-renderer` | 5-8h |
+| 🟡 P2 | 声音合成器与音频通道 | `deusex-audio` | 3-5h |
+| 🟡 P2 | AI 行为树与移动控制 | `deusex-ai` | 6-8h |
+| 🟢 P3 | 物理引擎（碰撞、重力） | `deusex-physics` | 4-6h |
+
+---
+
+## 📚 技术架构
+
+### 依赖关系图
+
+```
+deusex-bytecode  →  deusex-ast
+     ↓
+deusex-vm       →  deusex-bytecode, deusex-package
+                 →  deusex-runtime
+deusex-codegen   →  deusex-bytecode, deusex-ast
+deusex-launcher  →  deusex-input, deusex-renderer, deusex-audio, deusex-vm
+
+Boxed dependencies (features):
+deusex-launcher --gui-> deusex-input --sdl3-> serde|clap
+deusex-launcher --gui-> deusex-renderer --wgpu---> wasm32 or x86_64
+deusex-launcher --gui-> deusex-audio --openal--> openal-sys
+```
+
+### 关键 README 文件
+
+| 文件 | 说明 |
+|------|------|
+| `README.md` (当前) | 快速开始与简要说明 |
+| `PROGRESS.md` (本文档) | 详细进度追踪 |
+| `CRATES.md` | 各 crate 详细说明 |
+| `AUDIENCE.md` | 设计意图与技术选型 |
+
+---
+
+## 🧪 测试状态
+
+| 测试类型 | 状态 | 说明 |
+|---------|------|------|
+| 单元测试 | ⚠️ 部分完成 | `bytecode/`, `codegen/` 模块有测试；`integration/` 为空 |
+| 集成测试 | ⚪ 未实现 | nil tests |
+| 性能测试 | ⚪ 未实现 | nil |
+| CI/CD | ❌ 未配置 | GitHub Actions 待添加 |
+
+---
+
+## 🚦 状态标签
+
+- ✅ 100% 完成
+- 🟡 70-90% 完成
+- 🟠 30-70% 完成
+- ⚪ <30% 或空模块
+
+---
+
+## 📅 时间线
+
+| 日期 | 事件 |
+|------|------|
+| 2024-10 | 项目启动，创建 Rust 工作区 |
+| 2024-10-xx | 实现 `deusex-bytecode`, `deusex-vm` 核心模块 |
+| 2024-11-05 | 完成 `deusex-package`, `deusex-launcher` |
+| 2024-11-06 | 当前状态：阶段性成果文档记录完成 |
+
+---
+
+## 📋 待办事项
+
+### 短期任务（1-2 周）
+
+- [ ] 补全 `deusex-ast` 缺失的 AST 类型
+- [ ] 实现 `deusex-renderer` 基础渲染循环
+- [ ] 在 CI 中验证 `bytecode` 模块测试覆盖率
+- [ ] 添加 CI/CD 配置文件（GitHub Actions）
+
+### 中期任务（1 个月）
+
+- [ ] 实现 `deusex-game` 游戏主循环
+- [ ] 实现 `deusex-audio` 音频管线
+- [ ] 实现常见 UI 组件（HUD、菜单）
+- [ ] 完成键盘/鼠标输入绑定
+
+### 长期任务（2-3 个月）
+
+- [ ] 实现 `deusex-physics` 物理引擎
+- [ ] 实现完整 AI 行为树
+- [ ] 多人联机支持
+- [ ] 性能优化与内存优化
+
+---
+
+## 🔗 参考资源
+
+- [Unreal Engine 1 Docs](https://docs.unrealengine.com/5.0/zh-CN/unreal-engine-1-blueprints-in-unreal-engine-5/)
+- [UnrealScript Bytecode Spec](https://github.com/Polynomial-Architected-Code/UE1-Bytecode-Std)
+- [wgpu Documentation](https://docs.rs/wgpu/latest/wgpu/)
+- [OpenAL Documentation](https://openal.org/documentation/)
+- [SDL3 Documentation](https://wiki.libsdl.org/SDL3/)
+
+---
+
+## 📝 更新日志
+
+### 2024-11-06
+
+- 创建 `PROGRESS.md` 作为项目的状态追踪文档
+- 记录 4 个已完成模块、3 个进行中模块、3 个未开始模块
+- 绘制依赖关系图及技术架构说明
+- 添加待办清单与优先级排序
+
+---
+
+**最后更新**: 2024-11-06
+**维护者**: Deus Ex Native Team

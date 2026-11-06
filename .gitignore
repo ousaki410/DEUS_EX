@@ -1,0 +1,69 @@
+# Rust / Cargo
+/target/
+**/*.rs.bk
+*.pdb
+
+# Generated files
+*.rlib
+*.so
+*.dylib
+*.dll
+*.exe
+*.exe~
+*.dll~
+
+# Test outputs
+*.profraw
+*.profdata
+*.gcda
+*.gcno
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+/target/debug/build/
+/target/release/build/
+
+# Caching
+Cargo.lock
+.deusex-native-*
+
+# Logs
+*.log
+logs/
+
+# Game data (large files, should not be committed)
+*.iso
+*.cue
+*.bin
+*.wad
+*.ut2
+*.ukx
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Package helper
+tmp.asc
+tmp.rsa
+tmp.tmp
+
+# Python compiled files
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
