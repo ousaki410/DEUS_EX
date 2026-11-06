@@ -383,8 +383,10 @@ if mgr.is_action_down(InputAction::MoveForward, &input_state) {
 - 碰撞响应：基于冲量的法向+摩擦解算、位置校正（防止下陷/穿模）
 - 欧拉积分速度/位置，重力、速度剪裁（防止隧道效应）
 - `CharacterController`: 角色控制器（WASD 移动、跳跃、重力、地面检测）
+- `Constraint`: 物理约束（弹簧 Spring、距离 Distance、点对点 PointToPoint）
+- 约束求解器：位置基础动力学（PBD）风格迭代求解
 
-**状态**: 🟡 50% 完成（基础刚体物理与角色控制器已实现，等待约束/关节/软体等高级特性）
+**状态**: 🟡 70% 完成（基础刚体物理 + 角色控制器 + 约束系统已实现，等待软体/流体等高级特性）
 
 **模块**:
 - `PhysicsWorld`: 物理世界与步进模拟
@@ -394,10 +396,11 @@ if mgr.is_action_down(InputAction::MoveForward, &input_state) {
 - `CollisionManifold`: 单帧碰撞集合
 - `PhysicsConfig`: 物理配置（重力、时间步长、子步数等）
 - `CharacterController`: 角色控制器
+- `Constraint`, `ConstraintId`, `ConstraintType`: 物理约束与类型
 
 **使用示例**:
 ```rust
-use deusex_physics::{PhysicsWorld, RigidBody, BodyId, CharacterController, ColliderShape};
+use deusex_physics::{PhysicsWorld, RigidBody, BodyId, CharacterController, Constraint, ConstraintType};
 
 let mut world = PhysicsWorld::default();
 
@@ -412,14 +415,81 @@ let ball_id = world.add_body(RigidBody::sphere(
     1.0,
 ));
 
-// 创建角色控制器
-let mut cc = CharacterController::new(ball_id, 0.5, 1.8);
+// 添加弹簧约束连接两个球体
+let spring = Constraint {
+    id: ConstraintId::null(),
+    body_a: floor_id,
+    body_b: ball_id,
+    ctype: ConstraintType::Spring {
+        stiffness: 10.0,
+        damping: 1.0,
+        rest_length: 5.0,
+    },
+    enabled: true,
+};
+world.add_constraint(spring);
 
-// 物理步进
+// 物理步进（自动求解碰撞和约束）
 world.step();
 
-// 角色控制（需要可变访问 world）
-cc.set_move_input(glam::Vec3::new(1.0, 0.0, 0.0));
+// 查询碰撞结果
+for collision in world.last_manifold().collisions.iter() {
+    println!("碰撞: {:?} 与 {:?}, 穿深: {}", collision.body_a, collision.body_b, collision.penetration);
+}
+```
+
+---
+
+### deusex-ai
+
+**职责**: AI 行为树系统
+
+**主要功能**:
+- `BehaviorTree`: 行为树，持有根节点和黑板
+- `Blackboard`: 键值对黑板，支持 Bool/Int/Float/String/Vec3 类型，供节点间共享状态
+- `BehaviorTreeExecutor`: 行为树执行器，每帧调用 tick
+- `Node` trait: 行为节点接口（tick 返回 Status: Running/Success/Failure）
+- `Sequence`: 顺序组合节点，所有子节点都成功才返回 Success
+- `Selector`: 选择器组合节点，有一个子节点成功就返回 Success
+- `Inverter`: 反转装饰器，翻转子节点的 Success/Failure
+- `Repeater`: 重复装饰器，重复执行子节点指定次数或无限
+- `ActionNode`: 动作叶子节点（用户自定义行为闭包）
+- `ConditionNode`: 条件叶子节点（用户自定义条件检查闭包）
+- `builtin`: 预定义行为节点（has_target/is_close_to_target/move_to_target/attack_target/patrol/wait）
+
+**状态**: 🟡 40% 完成（行为树框架 + 黑板 + 内置行为节点已实现，等待感知系统/导航集成）
+
+**模块**:
+- `BehaviorTree`: 行为树容器
+- `Blackboard`: 黑板键值对存储
+- `BehaviorTreeExecutor`: 行为树执行器
+- `Node`: 行为节点 trait
+- `Status`: 节点执行状态（Running/Success/Failure）
+- `Sequence`, `Selector`, `Inverter`, `Repeater`: 组合与装饰节点
+- `ActionNode`, `ConditionNode`: 叶子节点
+- `builtin`: 内置 AI 行为节点
+
+**使用示例**:
+```rust
+use deusex_ai::{BehaviorTree, BehaviorTreeExecutor, Sequence, Status};
+use deusex_ai::builtin::{has_target, is_close_to_target, attack_target, wait};
+
+let mut tree = BehaviorTree::new("GuardAI");
+let mut seq = Sequence::new("GuardSequence");
+seq.add_child(has_target());
+seq.add_child(is_close_to_target(2.0));
+seq.add_child(attack_target());
+tree.set_root(Box::new(seq));
+
+let mut executor = BehaviorTreeExecutor::new(tree);
+executor.tree_mut().blackboard_mut().set_bool("target", true);
+executor.tree_mut().blackboard_mut().set_vec3("self_pos", [0.0, 0.0, 0.0]);
+executor.tree_mut().blackboard_mut().set_vec3("target_pos", [1.0, 0.0, 0.0]);
+
+// 每帧调用
+let status = executor.tick();
+assert_eq!(status, Status::Success);
+```
 cc.update(&mut world, 1.0 / 60.0);
 
 // 查询碰撞结果

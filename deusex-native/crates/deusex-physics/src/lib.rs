@@ -53,6 +53,44 @@ pub struct Collision {
     pub point: Vec3,
 }
 
+/// 物理约束类型。
+#[derive(Debug, Clone, Copy)]
+pub enum ConstraintType {
+    /// 弹簧约束：两个刚体之间的胡克定律弹簧连接。
+    /// `stiffness` 弹簧刚度，`damping` 阻尼系数，`rest_length` 自然长度。
+    Spring { stiffness: f32, damping: f32, rest_length: f32 },
+    /// 距离约束：两个锚点之间的固定距离（不可伸缩的杆）。
+    /// `distance` 目标距离。
+    Distance { distance: f32 },
+    /// 点对点关节（铰链）：两个刚体的指定点保持重合。
+    /// `anchor_a` / `anchor_b` 是各自刚体局部空间的锚点偏移。
+    PointToPoint { anchor_a: Vec3, anchor_b: Vec3 },
+}
+
+/// 物理约束实例，连接两个刚体。
+#[derive(Debug, Clone, Copy)]
+pub struct Constraint {
+    pub id: ConstraintId,
+    pub body_a: BodyId,
+    pub body_b: BodyId,
+    pub ctype: ConstraintType,
+    /// 是否启用。
+    pub enabled: bool,
+}
+
+/// 物理约束唯一标识符。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ConstraintId(usize);
+
+impl ConstraintId {
+    pub fn null() -> Self {
+        Self(usize::MAX)
+    }
+    pub fn is_null(&self) -> bool {
+        self.0 == usize::MAX
+    }
+}
+
 /// 刚体物理对象。
 #[derive(Debug, Clone)]
 pub struct RigidBody {
@@ -229,7 +267,9 @@ impl Default for PhysicsConfig {
 pub struct PhysicsWorld {
     config: PhysicsConfig,
     bodies: HashMap<BodyId, RigidBody>,
-    next_id: usize,
+    constraints: Vec<Constraint>,
+    next_body_id: usize,
+    next_constraint_id: usize,
     /// 上一帧的碰撞结果（供角色控制器等使用）。
     last_manifold: CollisionManifold,
 }
@@ -244,7 +284,9 @@ impl PhysicsWorld {
         Self {
             config,
             bodies: HashMap::new(),
-            next_id: 0,
+            constraints: Vec::new(),
+            next_body_id: 0,
+            next_constraint_id: 0,
             last_manifold: CollisionManifold::default(),
         }
     }
@@ -257,8 +299,8 @@ impl PhysicsWorld {
     /// 添加一个刚体到世界，返回其 `BodyId`。
     pub fn add_body(&mut self, body: RigidBody) -> BodyId {
         let id = if body.id.is_null() {
-            let id = BodyId(self.next_id);
-            self.next_id += 1;
+            let id = BodyId(self.next_body_id);
+            self.next_body_id += 1;
             id
         } else {
             body.id
@@ -266,6 +308,32 @@ impl PhysicsWorld {
         self.bodies.insert(id, body);
         debug!("physics: added body {:?}", id);
         id
+    }
+
+    /// 添加一个物理约束到世界，返回其 `ConstraintId`。
+    pub fn add_constraint(&mut self, constraint: Constraint) -> ConstraintId {
+        let id = if constraint.id.is_null() {
+            let id = ConstraintId(self.next_constraint_id);
+            self.next_constraint_id += 1;
+            id
+        } else {
+            constraint.id
+        };
+        self.constraints.push(Constraint { id, ..constraint });
+        debug!("physics: added constraint {:?}", id);
+        id
+    }
+
+    /// 移除一个约束。
+    pub fn remove_constraint(&mut self, id: ConstraintId) -> Option<Constraint> {
+        self.constraints.iter().position(|c| c.id == id).and_then(|i| {
+            Some(self.constraints.remove(i))
+        })
+    }
+
+    /// 返回约束数量。
+    pub fn constraint_count(&self) -> usize {
+        self.constraints.len()
     }
 
     /// 移除一个刚体。
@@ -319,7 +387,10 @@ impl PhysicsWorld {
             // 3. 碰撞响应（冲量解算 + 位置校正）。
             self.resolve_collisions(&manifold, dt);
 
-            // 4. 保存本帧碰撞结果（供角色控制器等使用）。
+            // 4. 约束求解（弹簧、距离、点对点关节等）。
+            self.resolve_constraints(dt);
+
+            // 5. 保存本帧碰撞结果（供角色控制器等使用）。
             self.last_manifold = manifold;
         }
     }
@@ -713,6 +784,163 @@ impl PhysicsWorld {
             }
         }
     }
+
+    /// 约束求解：对每个启用的约施加修正力/位置校正。
+    ///
+    /// 使用位置基础动力学（PBD）风格的迭代求解，多次迭代以提高稳定性。
+    fn resolve_constraints(&mut self, dt: f32) {
+        const ITERATIONS: i32 = 8;
+
+        for _ in 0..ITERATIONS {
+            for constraint in &self.constraints {
+                if !constraint.enabled {
+                    continue;
+                }
+
+                let body_a_id = constraint.body_a;
+                let body_b_id = constraint.body_b;
+
+                // 先读取两个身体的状态（不可变借用，自动释放）。
+                let (pos_a, vel_a, inv_mass_a, static_a) = {
+                    let b = self.bodies.get(&body_a_id).unwrap();
+                    (b.position, b.velocity, b.inverse_mass, b.is_static)
+                };
+                let (pos_b, vel_b, inv_mass_b, static_b) = {
+                    let b = self.bodies.get(&body_b_id).unwrap();
+                    (b.position, b.velocity, b.inverse_mass, b.is_static)
+                };
+
+                let total_inv_mass = inv_mass_a + inv_mass_b;
+                if total_inv_mass <= 0.0 || (static_a && static_b) {
+                    continue;
+                }
+
+                match constraint.ctype {
+                    ConstraintType::Spring {
+                        stiffness,
+                        damping,
+                        rest_length,
+                    } => {
+                        let delta = pos_a - pos_b;
+                        let dist = delta.length();
+                        if dist < 1e-6 {
+                            continue;
+                        }
+                        let normal = delta / dist;
+
+                        // 胡克定律：F = -k * (dist - rest_length) * normal
+                        let extension = dist - rest_length;
+                        let spring_force = -stiffness * extension * normal;
+
+                        // 阻尼：F_d = -damping * relative_velocity
+                        let rel_vel = vel_a - vel_b;
+                        let damping_force = -damping * rel_vel.dot(normal) * normal;
+
+                        let total_force = spring_force + damping_force;
+
+                        // 应用力（等效于加速度 * dt）
+                        if !static_a {
+                            if let Some(body) = self.bodies.get_mut(&body_a_id) {
+                                body.velocity += total_force * inv_mass_a * dt;
+                            }
+                        }
+                        if !static_b {
+                            if let Some(body) = self.bodies.get_mut(&body_b_id) {
+                                body.velocity -= total_force * inv_mass_b * dt;
+                            }
+                        }
+                    }
+                    ConstraintType::Distance { distance } => {
+                        let delta = pos_a - pos_b;
+                        let dist = delta.length();
+                        if dist < 1e-6 {
+                            continue;
+                        }
+                        let normal = delta / dist;
+
+                        // 距离误差
+                        let error = dist - distance;
+                        let correction = error * 0.5; // 平均分配修正
+                        let offset = normal * correction;
+
+                        if !static_a {
+                            if let Some(body) = self.bodies.get_mut(&body_a_id) {
+                                body.position -= offset * inv_mass_a / total_inv_mass;
+                            }
+                        }
+                        if !static_b {
+                            if let Some(body) = self.bodies.get_mut(&body_b_id) {
+                                body.position += offset * inv_mass_b / total_inv_mass;
+                            }
+                        }
+
+                        // 沿约束法线消除相对速度（防止震荡）
+                        let rel_vel = vel_a - vel_b;
+                        let vel_along_normal = rel_vel.dot(normal);
+                        if vel_along_normal > 0.0 {
+                            let impulse = -vel_along_normal / total_inv_mass;
+                            if !static_a {
+                                if let Some(body) = self.bodies.get_mut(&body_a_id) {
+                                    body.velocity += normal * impulse * inv_mass_a;
+                                }
+                            }
+                            if !static_b {
+                                if let Some(body) = self.bodies.get_mut(&body_b_id) {
+                                    body.velocity -= normal * impulse * inv_mass_b;
+                                }
+                            }
+                        }
+                    }
+                    ConstraintType::PointToPoint {
+                        anchor_a,
+                        anchor_b,
+                    } => {
+                        // 简化：使用刚体当前位置作为世界空间锚点（忽略旋转）
+                        let world_a = pos_a + anchor_a;
+                        let world_b = pos_b + anchor_b;
+                        let delta = world_a - world_b;
+                        let dist = delta.length();
+                        if dist < 1e-6 {
+                            continue;
+                        }
+                        let normal = delta / dist;
+
+                        // 位置校正：将两个锚点拉到一起
+                        let correction = dist * 0.5;
+                        let offset = normal * correction;
+
+                        if !static_a {
+                            if let Some(body) = self.bodies.get_mut(&body_a_id) {
+                                body.position -= offset * inv_mass_a / total_inv_mass;
+                            }
+                        }
+                        if !static_b {
+                            if let Some(body) = self.bodies.get_mut(&body_b_id) {
+                                body.position += offset * inv_mass_b / total_inv_mass;
+                            }
+                        }
+
+                        // 速度校正：消除沿法线的相对速度
+                        let rel_vel = vel_a - vel_b;
+                        let vel_along_normal = rel_vel.dot(normal);
+                        if vel_along_normal > 0.0 {
+                            let impulse = -vel_along_normal / total_inv_mass;
+                            if !static_a {
+                                if let Some(body) = self.bodies.get_mut(&body_a_id) {
+                                    body.velocity += normal * impulse * inv_mass_a;
+                                }
+                            }
+                            if !static_b {
+                                if let Some(body) = self.bodies.get_mut(&body_b_id) {
+                                    body.velocity -= normal * impulse * inv_mass_b;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl Default for PhysicsWorld {
@@ -934,5 +1162,122 @@ mod tests {
 
         // 球体位于 y=1.0，半径 0.5，底部在 y=0.5，与平面 y=0 不重叠，不应 grounded。
         assert!(!cc.grounded);
+    }
+
+    #[test]
+    fn spring_constraint_applies_force() {
+        let mut world = PhysicsWorld::default();
+        // 两个动态球体，用弹簧连接
+        let a = RigidBody::sphere(BodyId(0), Vec3::new(-2.0, 0.0, 0.0), 0.5, 1.0);
+        let b = RigidBody::sphere(BodyId(1), Vec3::new(2.0, 0.0, 0.0), 0.5, 1.0);
+        world.add_body(a);
+        world.add_body(b);
+
+        let spring = Constraint {
+            id: ConstraintId::null(),
+            body_a: BodyId(0),
+            body_b: BodyId(1),
+            ctype: ConstraintType::Spring {
+                stiffness: 10.0,
+                damping: 1.0,
+                rest_length: 1.0,
+            },
+            enabled: true,
+        };
+        world.add_constraint(spring);
+
+        let vel_before_a = world.body(BodyId(0)).unwrap().velocity;
+        world.step();
+        let vel_after_a = world.body(BodyId(0)).unwrap().velocity;
+
+        // 距离为 4.0 > rest_length 1.0，弹簧应该拉向彼此，A 应该向右加速
+        assert!(vel_after_a.x > vel_before_a.x);
+    }
+
+    #[test]
+    fn distance_constraint_keeps_distance() {
+        let mut world = PhysicsWorld::default();
+        let a = RigidBody::sphere(BodyId(0), Vec3::ZERO, 0.5, 1.0);
+        let b = RigidBody::sphere(BodyId(1), Vec3::new(5.0, 0.0, 0.0), 0.5, 1.0);
+        world.add_body(a);
+        world.add_body(b);
+
+        let dist = Constraint {
+            id: ConstraintId::null(),
+            body_a: BodyId(0),
+            body_b: BodyId(1),
+            ctype: ConstraintType::Distance { distance: 2.0 },
+            enabled: true,
+        };
+        world.add_constraint(dist);
+
+        // 多步模拟，两个身体应该被拉近到距离 2.0
+        for _ in 0..10 {
+            world.step();
+        }
+
+        let pos_a = world.body(BodyId(0)).unwrap().position;
+        let pos_b = world.body(BodyId(1)).unwrap().position;
+        let dist_after = (pos_a - pos_b).length();
+        // 距离应该接近 2.0（允许一定误差）
+        assert!((dist_after - 2.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn constraint_enable_disable() {
+        let mut world = PhysicsWorld::default();
+        let a = RigidBody::sphere(BodyId(0), Vec3::ZERO, 0.5, 1.0);
+        let b = RigidBody::sphere(BodyId(1), Vec3::new(5.0, 0.0, 0.0), 0.5, 1.0);
+        world.add_body(a);
+        world.add_body(b);
+
+        let dist = Constraint {
+            id: ConstraintId::null(),
+            body_a: BodyId(0),
+            body_b: BodyId(1),
+            ctype: ConstraintType::Distance { distance: 2.0 },
+            enabled: true,
+        };
+        let cid = world.add_constraint(dist);
+
+        // 禁用约束
+        if let Some(c) = world.constraints.iter_mut().find(|c| c.id == cid) {
+            c.enabled = false;
+        }
+
+        // 多步模拟，两个身体应该自由下落/分离（不受距离约束限制）
+        for _ in 0..10 {
+            world.step();
+        }
+
+        // 验证约束已禁用
+        assert!(!world.constraints.iter().find(|c| c.id == cid).unwrap().enabled);
+    }
+
+    #[test]
+    fn add_remove_constraint() {
+        let mut world = PhysicsWorld::default();
+        let a = RigidBody::sphere(BodyId(0), Vec3::ZERO, 0.5, 1.0);
+        let b = RigidBody::sphere(BodyId(1), Vec3::new(2.0, 0.0, 0.0), 0.5, 1.0);
+        world.add_body(a);
+        world.add_body(b);
+
+        let spring = Constraint {
+            id: ConstraintId::null(),
+            body_a: BodyId(0),
+            body_b: BodyId(1),
+            ctype: ConstraintType::Spring {
+                stiffness: 10.0,
+                damping: 1.0,
+                rest_length: 1.0,
+            },
+            enabled: true,
+        };
+        let cid = world.add_constraint(spring);
+        assert_eq!(world.constraint_count(), 1);
+
+        let removed = world.remove_constraint(cid);
+        assert!(removed.is_some());
+        assert_eq!(world.constraint_count(), 0);
     }
 }
