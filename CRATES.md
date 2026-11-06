@@ -458,17 +458,17 @@ for collision in world.last_manifold().collisions.iter() {
 - `ConditionNode`: 条件叶子节点（用户自定义条件检查闭包）
 - `builtin`: 预定义行为节点（has_target/is_close_to_target/move_to_target/attack_target/patrol/wait）
 - `PerceptionSystem`: 感知系统（视线检测+听觉），支持用户提供的射线检测回调
-- `PerceptionComponent`: 感知组件（FOV、视距、听觉阈值、朝向、位置、视觉/听觉敏感度、FOV 边缘衰减、多点遮挡）
-- `Stimulus`/`PerceptionResult`: 感知刺激与结果结构体（支持 SoundType：脚步声/枪声/对话声/爆炸声）
+- `PerceptionComponent`: 感知组件（FOV、视距、听觉阈值、朝向、位置、视觉/听觉敏感度、FOV 边缘衰减、多点遮挡、HRTF 头宽/声音速度）
+- `Stimulus`/`PerceptionResult`: 感知刺激与结果结构体（支持 SoundType：脚步声/枪声/对话声/爆炸声、HearingInfo 听觉详情 ITD/ILD/方位角/仰角）
 - `SenseType`: 感知类型枚举（Vision/Hearing）
 - `SoundType`: 声音类型枚举（Footstep/Conversation/Gunshot/Explosion），各自有不同衰减系数和基础听距
 - `NavGrid`: 导航网格（2D 网格，可通过/障碍物，世界↔网格坐标转换，动态障碍物支持）
 - `AStarPathfinder`: A* 寻路算法（曼哈顿启发式，四连通）
 - `Path`/`PathFollower`: 路径与路径跟随器（支持路点导航、速度控制、移动方向计算）
-- `NavTriangle`/`NavGrid::retriangulate_dirty_region`: 动态重 triangulation，障碍物变化后重建受影响三角形
-- `CrowdAgent`/`CrowdManager`: Crowd 避让系统，基于斥力场的局部代理避让（ORCA 风格）
+- `NavTriangle`/`NavGrid::retriangulate_dirty_region`: 动态重 triangulation（局部重建，障碍物变化后只重建受影响区域）
+- `CrowdAgent`/`CrowdManager`: Crowd 避让系统，基于 ORCA (Optimal Reciprocal Collision Avoidance) 算法，支持碰撞时间预测和 2D 线性规划速度求解
 
-**状态**: 🟡 85% 完成（行为树 + 感知高级特性 + A* 寻路 + 导航网格动态更新 + Crowd 避让已实现）
+**状态**: 🟡 90% 完成（行为树 + 感知高级特性 + A* 寻路 + 导航网格动态更新 + Crowd ORCA 避让已实现）
 
 **模块**:
 - `BehaviorTree`: 行为树容器
@@ -480,9 +480,9 @@ for collision in world.last_manifold().collisions.iter() {
 - `ActionNode`, `ConditionNode`: 叶子节点
 - `builtin`: 内置 AI 行为节点
 - `PerceptionSystem`, `PerceptionComponent`: 感知系统与组件
-- `Stimulus`, `PerceptionResult`, `SenseType`, `SoundType`: 感知数据结构
+- `Stimulus`, `PerceptionResult`, `SenseType`, `SoundType`, `HearingInfo`: 感知数据结构
 - `NavGrid`, `NavTriangle`, `AStarPathfinder`, `Path`, `PathFollower`: 导航与寻路
-- `CrowdAgent`, `CrowdManager`: Crowd 代理与避让管理器
+- `CrowdAgent`, `CrowdManager`: Crowd 代理与 ORCA 避让管理器
 
 **使用示例**:
 ```rust
@@ -555,6 +555,64 @@ if grid.is_path_invalidated(path.as_ref().unwrap()) {
 
 // 清除障碍物
 grid.clear_obstacle(6, 6);
+```
+
+**HRTF 听觉空间化示例**:
+```rust
+use deusex_ai::{PerceptionSystem, PerceptionComponent, Stimulus, SenseType, SoundType};
+
+let raycast_cb = |origin: [f32; 3], target: [f32; 3]| {
+    // 返回遮挡强度 0.0~1.0
+    0.0
+};
+let mut system = PerceptionSystem::new(raycast_cb);
+system.set_timestamp(100.0);
+
+let perceiver = PerceptionComponent {
+    position: [0.0, 0.0, 0.0],
+    forward: [0.0, 0.0, -1.0],
+    enable_hrtf: true,
+    head_width: 0.215, // 成人平均头宽
+    ..Default::default()
+};
+
+// 枪声在右侧 10 米处
+let gunshot = Stimulus::hearing([10.0, 0.0, 0.0], 1.0, SoundType::Gunshot);
+let results = system.perceive(&perceiver, &[gunshot]);
+
+if let Some(result) = results.first() {
+    if let Some(hearing) = &result.hearing_info {
+        println!("ITD: {} 秒, ILD: {:.2}, 方位角: {:.2} 弧度",
+                 hearing.itd, hearing.ild, hearing.azimuth);
+        println!("置信度: {:.2}", result.confidence);
+    }
+}
+```
+
+**Crowd 避让示例**:
+```rust
+use deusex_ai::{CrowdManager, CrowdAgent};
+
+let mut crowd = CrowdManager::new();
+crowd.set_dt(0.016); // 60 FPS
+crowd.set_neighbor_radius(5.0);
+crowd.set_avoidance_weight(0.7);
+
+// 添加两个相向而行的代理
+let mut a1 = CrowdAgent::new(0, [-2.0, 0.0], 0.5, 2.0);
+a1.set_pref_vel([2.0, 0.0]); // 向右
+crowd.add_agent(a1);
+
+let mut a2 = CrowdAgent::new(1, [2.0, 0.0], 0.5, 2.0);
+a2.set_pref_vel([-2.0, 0.0]); // 向左
+crowd.add_agent(a2);
+
+// 每帧调用 update，代理会自动互相避让
+for _ in 0..100 {
+    crowd.update();
+    let pos = crowd.get_agent(0).unwrap().state.pos;
+    println!("代理 0 位置: ({:.2}, {:.2})", pos[0], pos[1]);
+}
 ```
 
 ---

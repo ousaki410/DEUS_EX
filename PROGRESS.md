@@ -5,7 +5,7 @@
 **Deus Ex GOTY / Revision** 的原生 Linux 移植项目（Rust 实现），基于 Unreal Engine 1 的游戏逻辑还原。
 
 - **状态**: 🟡 基础框架完成，Phase 2 媒体子系统 + 物理引擎已实现
-- **代码量**: ~25,500 行 Rust 代码
+- **代码量**: ~28,000 行 Rust 代码
 - **构建依赖**: Cargo nightly
 
 ---
@@ -104,7 +104,7 @@
 
 ### 🆕 Phase 2 预启 - AI 感知与导航寻路（新增）
 
-- 🧠 **deusex-ai** (AI 行为树与感知寻路) - 🟡 85%:
+- 🧠 **deusex-ai** (AI 行为树与感知寻路) - 🟡 90%:
   - ✅ BehaviorTree: 行为树容器（根节点 + 黑板）
   - ✅ Blackboard: 键值对黑板（Bool/Int/Float/String/Vec3）
   - ✅ BehaviorTreeExecutor: 行为树执行器，每帧 tick
@@ -113,17 +113,17 @@
   - ✅ ActionNode/ConditionNode: 叶子节点（用户自定义闭包）
   - ✅ builtin: 内置行为节点（has_target/is_close_to_target/move_to_target/attack_target/patrol/wait）
   - ✅ PerceptionSystem: 感知系统（视线检测+听觉）
-  - ✅ PerceptionComponent: 感知组件（FOV、视距、听觉阈值、朝向、位置、视觉/听觉敏感度、FOV 边缘衰减、多点遮挡）
-  - ✅ Stimulus/PerceptionResult: 感知刺激与结果（支持 SoundType：脚步声/枪声/对话声/爆炸声）
+  - ✅ PerceptionComponent: 感知组件（FOV、视距、听觉阈值、朝向、位置、视觉/听觉敏感度、FOV 边缘衰减、多点遮挡、HRTF 参数）
+  - ✅ Stimulus/PerceptionResult: 感知刺激与结果（支持 SoundType：脚步声/枪声/对话声/爆炸声、HearingInfo 听觉详情）
   - ✅ 视线锥细化：FOV 边缘置信度衰减、距离梯度置信度、多层遮挡检测（遮挡强度 0~1，部分遮挡降低置信度）
   - ✅ 听觉衰减模型：反平方定律（强度 = 基础强度 / (1 + 距离² × 声音类型衰减系数)）、不同声音类型差异衰减、障碍物遮挡额外衰减、强度阈值过滤
-  - ✅ 听觉空间化：基于声源方位角计算耳道强度差（ILD），侧方声音音量降低
+  - ✅ 听觉空间化 HRTF：ITD（耳道时间差）、ILD（耳道强度差）、方位角/仰角计算、声源定位置信度
   - ✅ NavGrid: 导航网格（2D 网格，可通过/障碍物，世界↔网格坐标转换）
   - ✅ AStarPathfinder: A* 寻路算法（曼哈顿启发式，四连通）
   - ✅ Path/PathFollower: 路径与路径跟随器（支持路点导航、速度控制、移动方向计算）
   - ✅ 导航网格动态更新：set_rect_obstacle/set_circle_obstacle、clear_obstacle、is_path_invalidated、clear_dirty_regions
-  - ✅ 导航网格动态重 triangulation：NavTriangle 三角形网格、build_triangulation/retriangulate_dirty_region
-  - ✅ Crowd 避让：CrowdAgent 代理状态、CrowdManager 斥力场避让（ORCA 风格局部避让、相对速度调整）
+  - ✅ 导航网格动态重 triangulation：NavTriangle 三角形网格、build_triangulation/retriangulate_dirty_region（局部重 triangulation）
+  - ✅ Crowd 避让：CrowdAgent 代理状态、CrowdManager ORCA 算法（Optimal Reciprocal Collision Avoidance、碰撞时间预测、2D 线性规划速度求解）
 
 ### 5️⃣ Phase 3 预启 - 游戏主循环与输入绑定（新增）
 
@@ -166,12 +166,13 @@
 | 🟢 P3 | AI 行为树（Sequence/Selector/Decorator） | `deusex-ai` | ✅ 已完成 |
 | 🟡 P2 | AI 感知高级特性（FOV 边缘衰减、多点遮挡、反平方听觉衰减） | `deusex-ai` | ✅ 已完成 |
 | 🟡 P2 | 导航网格动态更新（矩形/圆形障碍物、路径失效检测） | `deusex-ai` | ✅ 已完成 |
-| 🟡 P2 | AI 感知高级特性（多层遮挡检测、听觉空间化 ILD） | `deusex-ai` | ✅ 已完成 |
-| 🟡 P2 | 导航网格动态重 triangulation | `deusex-ai` | ✅ 已完成 |
-| 🟡 P2 | Crowd 代理避让（斥力场局部避让） | `deusex-ai` | ✅ 已完成 |
+| 🟡 P2 | AI 感知高级特性（HRTF 听觉空间化、多层遮挡检测） | `deusex-ai` | ✅ 已完成 |
+| 🟡 P2 | 导航网格动态重 triangulation（局部重建） | `deusex-ai` | ✅ 已完成 |
+| 🟡 P2 | Crowd 避让（ORCA 算法、碰撞时间预测、2D 线性规划） | `deusex-ai` | ✅ 已完成 |
 | 🟢 P3 | 物理引擎高级特性（软体、流体） | `deusex-physics` | ⏳ 待实现 |
-| 🟢 P3 | AI 感知高级特性（视线锥多层遮挡、听觉空间化） | `deusex-ai` | ⏳ 待实现 |
-| 🟢 P3 | 导航网格动态重 triangulation、 crowd 避让 | `deusex-ai` | ⏳ 待实现 |
+| 🟢 P3 | AI 感知最高级（HRTF 颜色过滤、多声源分离） | `deusex-ai` | ⏳ 待实现 |
+| 🟢 P3 | 导航网格动态重 triangulation 优化（增量式更新） | `deusex-ai` | ⏳ 待实现 |
+| 🟢 P3 | Crowd 避让（完整 ORCA、群体流、领袖追随） | `deusex-ai` | ⏳ 待实现 |
 
 ---
 
