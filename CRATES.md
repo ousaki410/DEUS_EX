@@ -458,14 +458,15 @@ for collision in world.last_manifold().collisions.iter() {
 - `ConditionNode`: 条件叶子节点（用户自定义条件检查闭包）
 - `builtin`: 预定义行为节点（has_target/is_close_to_target/move_to_target/attack_target/patrol/wait）
 - `PerceptionSystem`: 感知系统（视线检测+听觉），支持用户提供的射线检测回调
-- `PerceptionComponent`: 感知组件（FOV、视距、听觉阈值、朝向、位置）
-- `Stimulus`/`PerceptionResult`: 感知刺激与结果结构体
+- `PerceptionComponent`: 感知组件（FOV、视距、听觉阈值、朝向、位置、视觉/听觉敏感度、FOV 边缘衰减、多点遮挡）
+- `Stimulus`/`PerceptionResult`: 感知刺激与结果结构体（支持 SoundType：脚步声/枪声/对话声/爆炸声）
 - `SenseType`: 感知类型枚举（Vision/Hearing）
-- `NavGrid`: 导航网格（2D 网格，可通过/障碍物，世界↔网格坐标转换）
+- `SoundType`: 声音类型枚举（Footstep/Conversation/Gunshot/Explosion），各自有不同衰减系数和基础听距
+- `NavGrid`: 导航网格（2D 网格，可通过/障碍物，世界↔网格坐标转换，动态障碍物支持）
 - `AStarPathfinder`: A* 寻路算法（曼哈顿启发式，四连通）
-- `Path`/`PathFollower`: 路径与路径跟随器（支持路点导航、速度控制）
+- `Path`/`PathFollower`: 路径与路径跟随器（支持路点导航、速度控制、移动方向计算）
 
-**状态**: 🟡 60% 完成（行为树 + 感知系统 + A* 寻路已实现，等待感知高级特性/导航动态更新）
+**状态**: 🟡 75% 完成（行为树 + 感知高级特性 + A* 寻路 + 导航网格动态更新已实现）
 
 **模块**:
 - `BehaviorTree`: 行为树容器
@@ -477,7 +478,7 @@ for collision in world.last_manifold().collisions.iter() {
 - `ActionNode`, `ConditionNode`: 叶子节点
 - `builtin`: 内置 AI 行为节点
 - `PerceptionSystem`, `PerceptionComponent`: 感知系统与组件
-- `Stimulus`, `PerceptionResult`, `SenseType`: 感知数据结构
+- `Stimulus`, `PerceptionResult`, `SenseType`, `SoundType`: 感知数据结构
 - `NavGrid`, `AStarPathfinder`, `Path`, `PathFollower`: 导航与寻路
 
 **使用示例**:
@@ -502,13 +503,55 @@ let status = executor.tick();
 assert_eq!(status, Status::Success);
 ```
 
-**.umx 模块音乐播放示例**:
-cc.update(&mut world, 1.0 / 60.0);
+**感知系统示例**:
+```rust
+use deusex_ai::{PerceptionSystem, PerceptionComponent, Stimulus, SenseType, SoundType};
 
-// 查询碰撞结果
-for collision in world.last_manifold().collisions.iter() {
-    println!("碰撞: {:?} 与 {:?}, 穿深: {}", collision.body_a, collision.body_b, collision.penetration);
+let raycast_cb = |origin: [f32; 3], target: [f32; 3]| {
+    // 返回 true 表示被遮挡
+    false
+};
+let mut system = PerceptionSystem::new(raycast_cb);
+system.set_timestamp(100.0);
+
+let perceiver = PerceptionComponent {
+    position: [0.0, 0.0, 0.0],
+    forward: [0.0, 0.0, -1.0],
+    ..Default::default()
+};
+
+// 视觉刺激
+let stimulus = Stimulus::vision([0.0, 0.0, -10.0], 1.0);
+let results = system.perceive(&perceiver, &[stimulus]);
+
+// 听觉刺激（枪声，远距离传播）
+let gunshot = Stimulus::hearing([50.0, 0.0, 0.0], 1.0, SoundType::Gunshot);
+let results = system.perceive(&perceiver, &[gunshot]);
+```
+
+**导航网格动态更新示例**:
+```rust
+use deusex_ai::{NavGrid, AStarPathfinder, Path};
+
+let mut grid = NavGrid::new(20, 20, 1.0, [0.0, 0.0]);
+
+// 设置矩形障碍物（如一堵墙）
+grid.set_rect_obstacle([5.0, 5.0], [7.0, 9.0], true);
+
+// 设置圆形障碍物（如一个柱子）
+grid.set_circle_obstacle([12.0, 12.0], 2.0, true);
+
+// 寻路
+let path = AStarPathfinder::find_path(&grid, (0, 0), (19, 19));
+
+// 检查路径是否因动态障碍物而失效
+if grid.is_path_invalidated(path.as_ref().unwrap()) {
+    // 重新寻路
+    grid.clear_dirty_regions();
 }
+
+// 清除障碍物
+grid.clear_obstacle(6, 6);
 ```
 
 ---

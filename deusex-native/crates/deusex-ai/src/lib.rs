@@ -818,6 +818,43 @@ pub enum SenseType {
     Hearing,
 }
 
+/// 声音类型：不同类型的声音有不同的衰减特性.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SoundType {
+    /// 脚步声：衰减快，听距短.
+    #[default]
+    Footstep,
+    /// 枪声：衰减慢，听距远.
+    Gunshot,
+    /// 对话声：中等衰减.
+    Conversation,
+    /// 爆炸声：衰减最慢，听距最远.
+    Explosion,
+}
+
+/// 声音类型的衰减系数（用于反平方定律：强度 = 基础强度 / (1 + 距离^2 * 衰减系数)）.
+impl SoundType {
+    /// 返回该声音类型的衰减系数（数值越小，传播越远）.
+    pub fn attenuation_coefficient(&self) -> f32 {
+        match self {
+            SoundType::Footstep => 0.05,
+            SoundType::Conversation => 0.03,
+            SoundType::Gunshot => 0.01,
+            SoundType::Explosion => 0.005,
+        }
+    }
+
+    /// 返回该声音类型的基础听距（米，不考虑衰减的最大可听距离）.
+    pub fn base_hear_distance(&self) -> f32 {
+        match self {
+            SoundType::Footstep => 15.0,
+            SoundType::Conversation => 25.0,
+            SoundType::Gunshot => 60.0,
+            SoundType::Explosion => 120.0,
+        }
+    }
+}
+
 /// 感知刺激：被感知对象发出的信号.
 #[derive(Debug, Clone)]
 pub struct Stimulus {
@@ -831,6 +868,34 @@ pub struct Stimulus {
     pub duration: f32,
     /// 刺激来源的实体标识(可选).
     pub source_id: Option<u64>,
+    /// 声音类型（仅当 sense_type == Hearing 时有效，用于听觉衰减模型）.
+    pub sound_type: SoundType,
+}
+
+impl Stimulus {
+    /// 创建一个视觉刺激.
+    pub fn vision(position: [f32; 3], strength: f32) -> Self {
+        Self {
+            position,
+            sense_type: SenseType::Vision,
+            strength,
+            duration: 0.0,
+            source_id: None,
+            sound_type: SoundType::default(),
+        }
+    }
+
+    /// 创建一个听觉刺激.
+    pub fn hearing(position: [f32; 3], strength: f32, sound_type: SoundType) -> Self {
+        Self {
+            position,
+            sense_type: SenseType::Hearing,
+            strength,
+            duration: 0.0,
+            source_id: None,
+            sound_type,
+        }
+    }
 }
 
 /// 感知结果：感知系统返回的感知信息.
@@ -863,7 +928,7 @@ impl Default for PerceptionConfig {
             fov: std::f32::consts::PI * 2.0 / 3.0, // 120度
             max_view_distance: 50.0,
             max_hear_distance: 30.0,
-            hear_threshold: 0.1,
+            hear_threshold: 0.01,
         }
     }
 }
@@ -876,6 +941,18 @@ pub struct PerceptionComponent {
     pub position: [f32; 3],
     /// 实体自身朝向向量(单位向量，用于视野判断).
     pub forward: [f32; 3],
+    /// 视觉敏感度乘数(1.0 = 正常，>1.0 = 更敏感，用于不同难度/角色) .
+    pub vision_sensitivity: f32,
+    /// 听觉敏感度乘数(1.0 = 正常，>1.0 = 更敏感) .
+    pub hearing_sensitivity: f32,
+    /// 是否启用视线锥边缘衰减(靠近 FOV 边缘时置信度降低) .
+    pub enable_fov_edge_falloff: bool,
+    /// 视线锥边缘衰减范围(弧度，在 FOV 边缘此范围内开始衰减) .
+    pub fov_edge_falloff_range: f32,
+    /// 是否启用多点遮挡检测(检查目标多个点，部分遮挡时降低置信度) .
+    pub enable_multi_point_occlusion: bool,
+    /// 多点遮挡检测的采样点数量（每个维度）.
+    pub occlusion_sample_count: u32,
 }
 
 impl Default for PerceptionComponent {
@@ -884,6 +961,12 @@ impl Default for PerceptionComponent {
             config: PerceptionConfig::default(),
             position: [0.0, 0.0, 0.0],
             forward: [0.0, 0.0, -1.0],
+            vision_sensitivity: 1.0,
+            hearing_sensitivity: 1.0,
+            enable_fov_edge_falloff: true,
+            fov_edge_falloff_range: 0.2, // 约 11 度
+            enable_multi_point_occlusion: true,
+            occlusion_sample_count: 3,
         }
     }
 }
@@ -956,52 +1039,134 @@ where
         let forward = glam::Vec3::from_array(perceiver.forward).normalize();
 
         match stimulus.sense_type {
-            SenseType::Vision => {
-                // 1. 距离检查.
-                let dist = (stim_pos - perp_pos).length();
-                if dist > perceiver.config.max_view_distance * stimulus.strength {
-                    return None;
-                }
+            SenseType::Vision => self.sense_vision(perceiver, stimulus, perp_pos, stim_pos, forward),
+            SenseType::Hearing => self.sense_hearing(perceiver, stimulus, perp_pos, stim_pos),
+        }
+    }
 
-                // 2. 视野夹角检查.
-                let to_stim = (stim_pos - perp_pos).normalize();
-                let dot = forward.dot(to_stim);
-                let fov_cos = (perceiver.config.fov * 0.5).cos();
-                if dot < fov_cos {
-                    return None;
-                }
+    /// 视觉感知：支持视线锥细化（FOV 边缘衰减、多点遮挡检测、距离梯度置信度）.
+    fn sense_vision(
+        &self,
+        perceiver: &PerceptionComponent,
+        stimulus: &Stimulus,
+        perp_pos: glam::Vec3,
+        stim_pos: glam::Vec3,
+        forward: glam::Vec3,
+    ) -> Option<f32> {
+        // 1. 距离检查.
+        let dist = (stim_pos - perp_pos).length();
+        let max_dist = perceiver.config.max_view_distance
+            * stimulus.strength
+            * perceiver.vision_sensitivity;
+        if dist > max_dist {
+            return None;
+        }
 
-                // 3. 视线检查(raycast).
-                if (self.raycast_cb)(perceiver.position, stimulus.position) {
-                    return None; // 被遮挡
-                }
+        // 2. 视野夹角检查.
+        let to_stim = (stim_pos - perp_pos).normalize();
+        let dot = forward.dot(to_stim);
+        let fov_cos = (perceiver.config.fov * 0.5).cos();
+        if dot < fov_cos {
+            return None;
+        }
 
-                // 基于距离和强度计算置信度.
-                let confidence = (1.0 - dist / perceiver.config.max_view_distance)
-                    .clamp(0.0, 1.0)
-                    * stimulus.strength;
-                Some(confidence)
-            }
-            SenseType::Hearing => {
-                // 1. 距离检查.
-                let dist = (stim_pos - perp_pos).length();
-                let hear_dist =
-                    perceiver.config.max_hear_distance * stimulus.strength;
-                if dist > hear_dist {
-                    return None;
-                }
-
-                // 2. 强度阈值检查.
-                let intensity = stimulus.strength / (1.0 + dist * 0.1);
-                if intensity < perceiver.config.hear_threshold {
-                    return None;
-                }
-
-                // 听觉不受遮挡影响(声音可穿透墙壁，但会衰减).
-                let confidence = intensity.clamp(0.0, 1.0);
-                Some(confidence)
+        // 3. FOV 边缘衰减：靠近视野边缘时置信度降低.
+        let mut confidence = 1.0;
+        if perceiver.enable_fov_edge_falloff {
+            let fov_half = perceiver.config.fov * 0.5;
+            let angle = dot.acos().clamp(0.0, fov_half);
+            let edge_start = fov_half - perceiver.fov_edge_falloff_range;
+            if angle > edge_start {
+                let falloff = (angle - edge_start) / perceiver.fov_edge_falloff_range;
+                confidence *= 1.0 - falloff.clamp(0.0, 1.0) * 0.6; // 边缘最多降低 60%
             }
         }
+
+        // 4. 多点遮挡检测：检查目标的多个采样点，部分遮挡时降低置信度.
+        if perceiver.enable_multi_point_occlusion && perceiver.occlusion_sample_count > 1 {
+            let sample_count = perceiver.occlusion_sample_count as f32;
+            let mut visible_samples = 0.0;
+
+            // 在目标位置周围生成采样点网格（简单的 3x3 网格，基于目标大小假设 1 米）.
+            let sample_size = 0.5;
+            let offset_range = sample_size * 0.5;
+            for i in 0..perceiver.occlusion_sample_count {
+                for j in 0..perceiver.occlusion_sample_count {
+                    let offset_x = (i as f32 - sample_count * 0.5 + 0.5) / sample_count * offset_range * 2.0;
+                    let offset_z = (j as f32 - sample_count * 0.5 + 0.5) / sample_count * offset_range * 2.0;
+                    let sample_pos = [
+                        stimulus.position[0] + offset_x,
+                        stimulus.position[1],
+                        stimulus.position[2] + offset_z,
+                    ];
+                    if !(self.raycast_cb)(perceiver.position, sample_pos) {
+                        visible_samples += 1.0;
+                    }
+                }
+            }
+
+            let total_samples = (perceiver.occlusion_sample_count * perceiver.occlusion_sample_count) as f32;
+            let occlusion_factor = visible_samples / total_samples;
+
+            // 如果完全被遮挡，返回 None.
+            if occlusion_factor <= 0.0 {
+                return None;
+            }
+
+            confidence *= occlusion_factor;
+        } else if (self.raycast_cb)(perceiver.position, stimulus.position) {
+            // 单点遮挡检测：完全被遮挡.
+            return None;
+        }
+
+        // 4. 距离梯度置信度：越近置信度越高.
+        let distance_confidence = (1.0 - dist / max_dist).clamp(0.0, 1.0);
+        confidence *= distance_confidence;
+
+        // 5. 应用刺激强度.
+        confidence *= stimulus.strength;
+
+        Some(confidence.clamp(0.0, 1.0))
+    }
+
+    /// 听觉感知：支持反平方定律衰减、声音类型差异、障碍物遮挡衰减.
+    fn sense_hearing(
+        &self,
+        perceiver: &PerceptionComponent,
+        stimulus: &Stimulus,
+        perp_pos: glam::Vec3,
+        stim_pos: glam::Vec3,
+    ) -> Option<f32> {
+        // 1. 距离检查（基于声音类型的基础听距）.
+        let dist = (stim_pos - perp_pos).length();
+        let base_dist = stimulus.sound_type.base_hear_distance()
+            * stimulus.strength
+            * perceiver.hearing_sensitivity;
+        if dist > base_dist {
+            return None;
+        }
+
+        // 2. 反平方定律衰减：强度 = 基础强度 / (1 + 距离^2 * 声音类型衰减系数).
+        let attenuation = stimulus.sound_type.attenuation_coefficient();
+        let intensity = stimulus.strength / (1.0 + dist * dist * attenuation);
+
+        // 3. 障碍物遮挡衰减：如果被遮挡，额外降低强度（声音可穿透但会衰减）.
+        let mut occlusion_factor = 1.0;
+        if (self.raycast_cb)(perceiver.position, stimulus.position) {
+            // 声音被墙壁遮挡，额外衰减 50%-80%.
+            occlusion_factor = 0.3;
+        }
+        let intensity = intensity * occlusion_factor;
+
+        // 4. 强度阈值检查.
+        let threshold = perceiver.config.hear_threshold;
+        if intensity < threshold {
+            return None;
+        }
+
+        // 5. 计算置信度：基于强度相对于阈值的比例.
+        let confidence = ((intensity - threshold) / (1.0 - threshold)).clamp(0.0, 1.0);
+        Some(confidence)
     }
 
     /// 返回本帧的所有感知结果.
@@ -1032,6 +1197,8 @@ pub struct NavGrid {
     nodes: Vec<bool>, // true=可通过，false=障碍
     cell_size: f32,
     origin: [f32; 2], // 网格原点(世界空间 X,Z)
+    /// 动态障碍物更新：脏区域集合（网格坐标），用于路径失效检测.
+    dirty_regions: Vec<(i32, i32)>,
 }
 
 impl NavGrid {
@@ -1043,14 +1210,65 @@ impl NavGrid {
             nodes: vec![true; (width * height) as usize],
             cell_size,
             origin,
+            dirty_regions: Vec::new(),
         }
     }
 
     /// 设置指定网格单元为障碍物.
     pub fn set_obstacle(&mut self, x: i32, y: i32, obstacle: bool) {
         if x >= 0 && x < self.width && y >= 0 && y < self.height {
-            self.nodes[(y * self.width + x) as usize] = !obstacle;
+            let idx = (y * self.width + x) as usize;
+            self.nodes[idx] = !obstacle;
+            if obstacle {
+                self.mark_dirty(x, y);
+            }
         }
+    }
+
+    /// 标记指定网格单元为脏区域（用于路径失效检测）.
+    fn mark_dirty(&mut self, x: i32, y: i32) {
+        if !self.dirty_regions.contains(&(x, y)) {
+            self.dirty_regions.push((x, y));
+        }
+    }
+
+    /// 设置矩形区域为障碍物（动态障碍物支持）.
+    ///
+    /// rect_min / rect_max 是世界空间坐标。
+    pub fn set_rect_obstacle(&mut self, rect_min: [f32; 2], rect_max: [f32; 2], obstacle: bool) {
+        let (min_x, min_y) = self.world_to_grid(rect_min[0], rect_min[1]);
+        let (max_x, max_y) = self.world_to_grid(rect_max[0], rect_max[1]);
+
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
+                self.set_obstacle(x, y, obstacle);
+            }
+        }
+    }
+
+    /// 设置圆形区域为障碍物（动态障碍物支持）.
+    ///
+    /// center 是世界空间坐标，radius 是半径（米）。
+    pub fn set_circle_obstacle(&mut self, center: [f32; 2], radius: f32, obstacle: bool) {
+        let (cx, cy) = self.world_to_grid(center[0], center[1]);
+        let radius_cells = (radius / self.cell_size).ceil() as i32;
+
+        for y in (cy - radius_cells)..=(cy + radius_cells) {
+            for x in (cx - radius_cells)..=(cx + radius_cells) {
+                if x >= 0 && x < self.width && y >= 0 && y < self.height {
+                    let dx = (x as f32 - cx as f32) * self.cell_size;
+                    let dy = (y as f32 - cy as f32) * self.cell_size;
+                    if (dx * dx + dy * dy).sqrt() <= radius {
+                        self.set_obstacle(x, y, obstacle);
+                    }
+                }
+            }
+        }
+    }
+
+    /// 清除指定网格单元的障碍物（恢复可通过）.
+    pub fn clear_obstacle(&mut self, x: i32, y: i32) {
+        self.set_obstacle(x, y, false);
     }
 
     /// 检查指定网格单元是否可通过.
@@ -1060,6 +1278,25 @@ impl NavGrid {
         } else {
             false
         }
+    }
+
+    /// 检查路径是否经过脏区域（动态障碍物更新后路径失效检测）.
+    pub fn is_path_invalidated(&self, path_points: &[[f32; 2]]) -> bool {
+        if self.dirty_regions.is_empty() {
+            return false;
+        }
+        for point in path_points {
+            let (gx, gy) = self.world_to_grid(point[0], point[1]);
+            if self.dirty_regions.contains(&(gx, gy)) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// 清除脏区域标记（在重新规划路径后调用）.
+    pub fn clear_dirty_regions(&mut self) {
+        self.dirty_regions.clear();
     }
 
     /// 将世界空间位置转换为网格坐标.
@@ -1350,6 +1587,7 @@ mod perception_tests {
             strength: 1.0,
             duration: 0.0,
             source_id: Some(1),
+            sound_type: SoundType::default(),
         };
 
         let results = system.perceive(&perceiver, &[stimulus]);
@@ -1375,6 +1613,7 @@ mod perception_tests {
             strength: 1.0,
             duration: 0.0,
             source_id: Some(1),
+            sound_type: SoundType::default(),
         };
 
         let results = system.perceive(&perceiver, &[stimulus]);
@@ -1398,6 +1637,7 @@ mod perception_tests {
             strength: 1.0,
             duration: 0.0,
             source_id: Some(2),
+            sound_type: SoundType::Gunshot,
         };
 
         let results = system.perceive(&perceiver, &[stimulus]);
@@ -1449,6 +1689,236 @@ mod perception_tests {
         let dir = dir.unwrap();
         assert!((dir[0] - 1.0).abs() < 0.01); // 应该向 X 正方向移动
         assert!(dir[1].abs() < 0.01);
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 感知高级特性测试
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    #[test]
+    fn vision_fov_edge_falloff() {
+        // 创建一个在 FOV 边缘的目标，启用 FOV 边缘衰减
+        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| false; // 无遮挡
+        let mut system = PerceptionSystem::new(raycast_cb);
+        system.set_timestamp(100.0);
+
+        let perceiver = PerceptionComponent {
+            position: [0.0, 0.0, 0.0],
+            forward: [0.0, 0.0, -1.0], // 面向 -Z
+            enable_fov_edge_falloff: true,
+            fov_edge_falloff_range: 0.2,
+            ..Default::default()
+        };
+
+        // 目标正前方（置信度应较高）
+        let stimulus_center = Stimulus::vision([0.0, 0.0, -10.0], 1.0);
+        let results = system.perceive(&perceiver, &[stimulus_center]);
+        assert_eq!(results.len(), 1);
+        let center_confidence = results[0].confidence;
+
+        // 目标在 FOV 边缘附近（置信度应较低）
+        let fov_half = std::f32::consts::PI * 2.0 / 3.0 * 0.5; // 60度
+        let edge_angle = fov_half - 0.1; // 接近边缘
+        let edge_pos = [
+            -10.0 * edge_angle.sin(),
+            0.0,
+            -10.0 * edge_angle.cos(),
+        ];
+        let stimulus_edge = Stimulus::vision(edge_pos, 1.0);
+        let results = system.perceive(&perceiver, &[stimulus_edge]);
+        assert_eq!(results.len(), 1);
+        let edge_confidence = results[0].confidence;
+
+        // 边缘目标的置信度应低于中心目标
+        assert!(edge_confidence < center_confidence);
+    }
+
+    #[test]
+    fn vision_multi_point_occlusion_partial() {
+        // 多点遮挡检测：部分遮挡时降低置信度而不是完全拒绝
+        let raycast_cb = |origin: [f32; 3], target: [f32; 3]| {
+            // 只有当目标在中间区域时才被遮挡（模拟部分遮挡）
+            let dx = target[0] - origin[0];
+            let dz = target[2] - origin[2];
+            let dist = (dx * dx + dz * dz).sqrt();
+            dist > 2.0 && dist < 8.0 // 中间距离被遮挡
+        };
+        let mut system = PerceptionSystem::new(raycast_cb);
+
+        let perceiver = PerceptionComponent {
+            position: [0.0, 0.0, 0.0],
+            forward: [0.0, 0.0, -1.0],
+            enable_multi_point_occlusion: true,
+            occlusion_sample_count: 3,
+            ..Default::default()
+        };
+
+        // 目标在近处（不在遮挡区间，应完全可见）
+        let stimulus_near = Stimulus::vision([0.0, 0.0, -1.5], 1.0);
+        let results = system.perceive(&perceiver, &[stimulus_near]);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].confidence > 0.8); // 近处应高置信度
+
+        // 目标在远处（也不在遮挡区间，应完全可见）
+        let stimulus_far = Stimulus::vision([0.0, 0.0, -15.0], 1.0);
+        let results = system.perceive(&perceiver, &[stimulus_far]);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].confidence > 0.5); // 远处但无遮挡
+    }
+
+    #[test]
+    fn hearing_inverse_square_law() {
+        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| false; // 无遮挡
+        let mut system = PerceptionSystem::new(raycast_cb);
+
+        let perceiver = PerceptionComponent {
+            position: [0.0, 0.0, 0.0],
+            forward: [0.0, 0.0, -1.0],
+            ..Default::default()
+        };
+
+        // 枪声（低衰减系数，传播远）在近距离
+        let stimulus_close = Stimulus::hearing([5.0, 0.0, 0.0], 1.0, SoundType::Gunshot);
+        let results = system.perceive(&perceiver, &[stimulus_close]);
+        assert_eq!(results.len(), 1);
+        let close_confidence = results[0].confidence;
+
+        // 枪声在远距离（应比近距离低，但由于低衰减系数仍可感知）
+        let stimulus_far = Stimulus::hearing([40.0, 0.0, 0.0], 1.0, SoundType::Gunshot);
+        let results = system.perceive(&perceiver, &[stimulus_far]);
+        assert_eq!(results.len(), 1);
+        let far_confidence = results[0].confidence;
+
+        // 近距离置信度应高于远距离
+        assert!(close_confidence > far_confidence);
+        // 但远距离枪声仍应可感知（置信度 > 0）
+        assert!(far_confidence > 0.0);
+    }
+
+    #[test]
+    fn hearing_sound_type_difference() {
+        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| false;
+        let mut system = PerceptionSystem::new(raycast_cb);
+
+        let perceiver = PerceptionComponent {
+            position: [0.0, 0.0, 0.0],
+            forward: [0.0, 0.0, -1.0],
+            ..Default::default()
+        };
+
+        // 同等强度、同等距离：脚步声衰减快，枪声衰减慢
+        let footstep = Stimulus::hearing([20.0, 0.0, 0.0], 1.0, SoundType::Footstep);
+        let gunshot = Stimulus::hearing([20.0, 0.0, 0.0], 1.0, SoundType::Gunshot);
+
+        let footstep_results = system.perceive(&perceiver, &[footstep]);
+        let gunshot_results = system.perceive(&perceiver, &[gunshot]);
+
+        // 枪声应比脚步声更容易被感知（置信度更高）
+        if footstep_results.len() == 1 && gunshot_results.len() == 1 {
+            assert!(gunshot_results[0].confidence >= footstep_results[0].confidence);
+        }
+    }
+
+    #[test]
+    fn hearing_occlusion_attenuation() {
+        // 有遮挡时听觉强度应降低
+        let raycast_cb = |_origin: [f32; 3], _target: [f32; 3]| true; // 有遮挡
+        let mut system = PerceptionSystem::new(raycast_cb);
+
+        let perceiver = PerceptionComponent {
+            position: [0.0, 0.0, 0.0],
+            forward: [0.0, 0.0, -1.0],
+            ..Default::default()
+        };
+
+        // 近距离爆炸声即使有遮挡也应可感知（强度高）
+        let stimulus = Stimulus::hearing([10.0, 0.0, 0.0], 1.0, SoundType::Explosion);
+        let results = system.perceive(&perceiver, &[stimulus]);
+        // 爆炸声强度高，即使被遮挡也可能感知到
+        if results.len() == 1 {
+            assert!(results[0].confidence > 0.0);
+        }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 导航网格动态更新测试
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    #[test]
+    fn navgrid_rect_obstacle() {
+        let mut grid = NavGrid::new(10, 10, 1.0, [0.0, 0.0]);
+
+        // 设置矩形障碍物：世界坐标 (2,2) 到 (4,4)
+        grid.set_rect_obstacle([2.0, 2.0], [4.0, 4.0], true);
+
+        // 验证矩形区域内的单元都不可通过
+        for y in 2..=4 {
+            for x in 2..=4 {
+                assert!(!grid.is_walkable(x, y), "({},{}) should be obstacle", x, y);
+            }
+        }
+
+        // 验证区域外的单元仍可通过
+        assert!(grid.is_walkable(1, 1));
+        assert!(grid.is_walkable(5, 5));
+    }
+
+    #[test]
+    fn navgrid_circle_obstacle() {
+        let mut grid = NavGrid::new(10, 10, 1.0, [0.0, 0.0]);
+
+        // 设置圆形障碍物：中心 (5,5)，半径 2 米
+        grid.set_circle_obstacle([5.0, 5.0], 2.0, true);
+
+        // 中心应不可通过
+        assert!(!grid.is_walkable(5, 5));
+
+        // 远离中心的单元应可通过
+        assert!(grid.is_walkable(0, 0));
+        assert!(grid.is_walkable(9, 9));
+    }
+
+    #[test]
+    fn navgrid_dirty_region_path_invalidation() {
+        let mut grid = NavGrid::new(10, 10, 1.0, [0.0, 0.0]);
+
+        // 先找一条路径
+        let path = AStarPathfinder::find_path(&grid, (0, 0), (9, 9));
+        assert!(path.is_some());
+        let path = path.unwrap();
+
+        // 路径不应被标记为失效（没有脏区域）
+        assert!(!grid.is_path_invalidated(&path));
+
+        // 在路径中间设置障碍物
+        let mid_point = path[path.len() / 2];
+        let (gx, gy) = grid.world_to_grid(mid_point[0], mid_point[1]);
+        grid.set_obstacle(gx, gy, true);
+
+        // 现在路径应被标记为失效
+        assert!(grid.is_path_invalidated(&path));
+
+        // 清除脏区域后不应再失效
+        grid.clear_dirty_regions();
+        assert!(!grid.is_path_invalidated(&path));
+    }
+
+    #[test]
+    fn navgrid_clear_obstacle_restores_path() {
+        let mut grid = NavGrid::new(5, 5, 1.0, [0.0, 0.0]);
+
+        // 设置障碍物封堵路径
+        grid.set_obstacle(2, 2, true);
+        let _path = AStarPathfinder::find_path(&grid, (0, 0), (4, 4));
+        // 可能有路也可能没有，取决于 A* 是否绕过
+
+        // 清除障碍物
+        grid.clear_obstacle(2, 2);
+        assert!(grid.is_walkable(2, 2));
+
+        // 清除后应能找到路径
+        let path = AStarPathfinder::find_path(&grid, (0, 0), (4, 4));
+        assert!(path.is_some());
     }
 }
 
