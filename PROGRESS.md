@@ -4,8 +4,8 @@
 
 **Deus Ex GOTY / Revision** 的原生 Linux 移植项目（Rust 实现），基于 Unreal Engine 1 的游戏逻辑还原。
 
-- **状态**: 🟡 基础框架完成，Phase 2 媒体子系统部分实现
-- **代码量**: ~14,500 行 Rust 代码
+- **状态**: 🟡 基础框架完成，Phase 2 媒体子系统核心功能已实现
+- **代码量**: ~15,800 行 Rust 代码
 - **构建依赖**: Cargo nightly
 
 ---
@@ -28,17 +28,17 @@
 
 | 模块 | 代码行数 | 完成度 | 说明 |
 |------|---------|--------|------|
-| `deusex-renderer` | ~450 | 🟡 60% | wgpu 渲染管线、GPU 初始化、纹理上传、Sprite 绘制、双缓冲呈现 |
-| `deusex-audio` | 77 | 🟡 30% | OpenAL 设备/Context 初始化（声音合成器待实现） |
+| `deusex-renderer` | ~450 | 🟡 70% | wgpu 渲染管线、GPU 初始化、纹理上传、Sprite 绘制、双缓冲呈现、窗口 resize |
+| `deusex-audio` | ~330 | 🟡 60% | OpenAL 设备/Context、AudioBuffer(WAV 解析)、AudioSource(播放/音量/音调/3D位置/循环)、AudioManager(统一管理)、Listener 3D 音频 |
 | `deusex-physics` | 4 | ⚪ 0% | 占位（待实现） |
 
-### ✅ Phase 3 部分预启 - 游戏主循环
+### ✅ Phase 3 部分预启 - 游戏主循环与输入绑定
 
 | 模块 | 代码行数 | 完成度 | 说明 |
 |------|---------|--------|------|
-| `deusex-game` | ~200 | 🟡 30% | 游戏主循环、固定步长 Tick（60Hz）、场景栈管理、输入分发 |
+| `deusex-game` | ~200 | 🟡 35% | 游戏主循环、固定步长 Tick（60Hz）、场景栈管理（push/pop/replace+enter/exit）、输入分发、渲染帧协调 |
+| `deusex-input` | ~300 | 🟡 85% | SDL3 输入处理、InputAction 枚举、InputBinding(按键绑定)、InputManager(动作查询/边缘检测/重新绑定)、默认 WASD 绑定 |
 | `deusex-ai` | 4 | ⚪ 0% | 占位（AI 行为树、移动寻路、交互） |
-| `deusex-input` | 108 | 🟡 70% | SDL3 输入处理框架（键盘/鼠标/退出事件） |
 
 ---
 
@@ -83,10 +83,13 @@
   - ✅ 窗口大小调整（resize）
 - 🔊 **deusex-audio** (OpenAL):
   - ✅ OpenAL 设备/Context 初始化与销毁（RAII）
-  - ⏳ 声音合成器与音频通道（待实现）
+  - ✅ `AudioBuffer`: WAV 文件解析与 OpenAL 缓冲上传（PCM 8/16-bit, mono/stereo）
+  - ✅ `AudioSource`: 音源播放控制（play/stop/pause）、音量(gain)、音调(pitch)、3D 位置、循环(looping)
+  - ✅ `AudioManager`: 统一管理缓冲与音源，`load_buffer`/`create_source`/`bind_buffer` 接口
+  - ✅ `Listener`: 3D 音频监听者（位置、朝向、速度），`alListenerfv` 方向向量
   - ⏳ `.umx` 模块播放（libopenmpt 绑定待确认）
 
-### 5️⃣ Phase 3 预启 - 游戏主循环（新增）
+### 5️⃣ Phase 3 预启 - 游戏主循环与输入绑定（新增）
 
 - 🎮 **deusex-game**:
   - ✅ 游戏主状态（elapsed 时间、退出请求）
@@ -96,6 +99,13 @@
   - ✅ 渲染帧（变步长 + 插值 alpha）
   - ✅ `run_loop()` 阻塞主循环入口
   - ⏳ 实际游戏场景（主菜单、关卡等）待实现
+
+- 🎮 **deusex-input** (输入绑定系统):
+  - ✅ `InputState`: 每帧输入快照（键盘/鼠标/退出/按键边缘）
+  - ✅ `InputAction`: 游戏动作枚举（MoveForward/Jump/Use/Fire/Menu 等 16 种）
+  - ✅ `InputBinding`: 动作到多个按键的映射
+  - ✅ `InputManager`: 动作查询（is_down/pressed/released）、边缘检测(update_edges)、默认 WASD 绑定、运行时重新绑定
+  - ✅ SDL3 后端：键盘按下/释放、鼠标移动/按钮、窗口关闭
 
 ---
 
@@ -107,8 +117,11 @@
 | 🔴 P0 | 游戏主循环与固定步长 Tick | `deusex-game` | ✅ 已完成 |
 | 🟠 P1 | 场景管理（栈、enter/exit 生命周期） | `deusex-game` | ✅ 已完成 |
 | 🟠 P1 | 纹理上传与 Sprite 渲染管线 | `deusex-renderer` | ✅ 已完成 |
-| 🟡 P2 | 声音合成器与音频通道 | `deusex-audio` | ⏳ 待实现 |
-| 🟡 P2 | 游戏控制输入绑定（键位映射） | `deusex-input` | ⏳ 待实现 |
+| 🟠 P1 | 音频缓冲与音源播放（WAV/OpenAL） | `deusex-audio` | ✅ 已完成 |
+| 🟠 P1 | 输入动作绑定系统（Action→Key） | `deusex-input` | ✅ 已完成 |
+| 🟡 P2 | 3D 空间音频监听者（Listener） | `deusex-audio` | ✅ 已完成 |
+| 🟡 P2 | `.umx` 模块音乐播放 | `deusex-audio` | ⏳ 待实现 |
+| 🟡 P2 | 游戏控制输入绑定（运行时重新绑定） | `deusex-input` | ✅ 已完成 |
 | 🟢 P3 | 物理引擎（碰撞、重力） | `deusex-physics` | ⏳ 待实现 |
 | 🟢 P3 | AI 行为树与移动控制 | `deusex-ai` | ⏳ 待实现 |
 

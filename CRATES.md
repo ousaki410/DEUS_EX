@@ -253,42 +253,91 @@ renderer.render()?;
 
 ### deusex-audio
 
-**职责**: 音频后端（基于 OpenAL）
+**职责**: 音频后端（基于 OpenAL Soft）
 
 **主要功能**:
-- 音频设备管理
-- OpenAL 设备/Context 初始化与销毁（RAII）
+- OpenAL 设备/Context 初始化与销毁（RAII，`AudioContext`）
+- `AudioBuffer`: WAV 文件解析（PCM 8/16-bit, mono/stereo）并上传到 OpenAL 缓冲
+- `AudioSource`: 音源播放控制（play/stop/pause）、音量(gain)、音调(pitch)、3D 位置、循环(looping)、状态查询
+- `AudioManager`: 统一管理缓冲(`load_buffer`)、音源(`create_source`)、绑定(`bind_buffer`)、播放控制、监听者(`set_listener`)
+- `Listener`: 3D 音频监听者（位置、前向/上向量、速度），通过 `alListenerfv` 设置方向
 
-**状态**: 🟡 30% 完成（只有后端初始化框架）
+**状态**: 🟡 60% 完成（后端初始化 + 缓冲/音源/管理器已实现，等待 `.umx` 模块音乐播放）
+
+**模块**:
+- `AudioContext`: OpenAL 设备与上下文 RAII
+- `AudioBuffer`, `BufferId`: 已加载的音频缓冲句柄
+- `AudioSource`, `SourceId`: 音源实例与句柄
+- `AudioManager`: 统一音频管理器
+- `SourceConfig`, `Listener`, `Position`: 配置与 3D 位置类型
 
 **使用示例**:
 ```rust
-use deusex_audio::AudioContext;
+use deusex_audio::{AudioContext, AudioManager, Listener, Position, SourceConfig};
 
-let audio = AudioContext::new()?;
-// 音频设备已就绪，可开始播放声音
+let ctx = AudioContext::new()?;
+let mut mgr = AudioManager::new(ctx)?;
+
+// 加载 WAV 声音
+let buffer_id = mgr.load_buffer("footstep", &wav_bytes)?;
+
+// 创建音源并绑定缓冲
+let source_id = mgr.create_source(SourceConfig {
+    gain: 0.8,
+    looping: false,
+    ..Default::default()
+})?;
+mgr.bind_buffer(source_id, buffer_id)?;
+
+// 播放
+mgr.play(source_id)?;
+
+// 设置 3D 监听者（玩家位置）
+mgr.set_listener(Listener {
+    position: Position { x: 10.0, y: 0.0, z: -5.0 },
+    ..Default::default()
+});
 ```
 
 ---
 
 ### deusex-input
 
-**职责**: 输入系统（基于 SDL3）
+**职责**: 输入系统（基于 SDL3）+ 游戏动作绑定
 
 **主要功能**:
-- 键盘输入处理
-- 鼠标输入处理
-- 游戏手柄支持
+- `InputState`: 每帧输入快照（键盘按下/按下边缘/释放边缘、鼠标移动/按钮/位置、退出请求）
+- `InputAction`: 游戏动作枚举（MoveForward/Backward/StrafeLeft/Right/Jump/Crouch/Run/Use/Fire/NextPrevWeapon/Inventory/Map/Menu/Talk/Action1/2，共 16 种）
+- `InputBinding`: 动作到多个按键(SDL3 scancode)的映射
+- `InputManager`: 动作状态查询(`is_action_down`/`pressed`/`released`)、按键边缘检测(`update_edges`)、默认 WASD 绑定、运行时重新绑定(`bind_key`/`unbind_key`)
+- SDL3 后端：`SdlContext`(窗口+事件泵)、`SdlWindow`、键盘/鼠标/窗口关闭事件处理
 
-**状态**: ✅ 70% 完成（基础输入处理）
+**状态**: 🟡 85% 完成（输入状态 + 动作绑定系统已实现，等待游戏手柄支持）
+
+**模块**:
+- `InputState`: 每帧输入状态
+- `InputAction`: 游戏动作枚举
+- `InputBinding`: 按键绑定
+- `InputManager`: 绑定管理与动作查询
+- `keycode`: SDL3 scancode 常量
+- `sdl::SdlContext`, `sdl::SdlWindow`: SDL3 后端
 
 **使用示例**:
 ```rust
-use deusex_input::sdl::{SdlContext, InputState};
+use deusex_input::{InputManager, InputAction, keycode};
 
-let mut sdl = SdlContext::init()?;
-let mut state = InputState::default();
-sdl.pump(&mut state);
+let mut mgr = InputManager::new(); // 自带默认 WASD 绑定
+
+// 重新绑定跳跃键
+mgr.bind_key(InputAction::Jump, keycode::SPACE);
+
+// 查询动作状态
+if mgr.is_action_pressed(InputAction::Menu, &input_state) {
+    // ESC 刚被按下
+}
+if mgr.is_action_down(InputAction::MoveForward, &input_state) {
+    // W 键被按住
+}
 ```
 
 ---

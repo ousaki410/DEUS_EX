@@ -187,9 +187,12 @@ fn main() {
 
 #[cfg(feature = "gui")]
 async fn run_async() -> Result<(), Box<dyn std::error::Error>> {
-    use deusex_audio::AudioContext;
+    use deusex_audio::{AudioContext, AudioManager, Listener, Position, SourceConfig};
     use deusex_game::Game;
-    use deusex_input::sdl::{SdlContext, SdlWindow};
+    use deusex_input::{
+        sdl::{SdlContext, SdlWindow},
+        InputManager, InputState,
+    };
     use deusex_renderer::{Gpu, Renderer};
     use tracing::info;
 
@@ -207,23 +210,21 @@ async fn run_async() -> Result<(), Box<dyn std::error::Error>> {
     // ┌─────────────────────────────────────────────────────────────────┐
     // │ 1. SDL3 window + input                                          │
     // └─────────────────────────────────────────────────────────────────┘
-    // `sdl3::video::Window` implements wgpu's `WindowHandle` trait (blanket
-    // impl over `HasWindowHandle` + `HasDisplayHandle`), so it can be passed
-    // straight to `Instance::create_surface`; wgpu boxes it and keeps the
-    // native window alive for the surface's lifetime.
-    //
-    // 注意：sdl3 0.2 依赖 `raw-window-handle 0.5`，而 wgpu 0.20 依赖
-    // `raw-window-handle 0.6`，两者的 `HasWindowHandle` trait 不兼容。
-    // 系统装好库后，若这里编译失败，需统一版本（如升级 sdl3 或降级 wgpu）
-    // 再把窗口句柄传给 wgpu。
     let mut sdl = SdlContext::init()?;
     let SdlWindow { window } = sdl.create_window("Deus Ex Native", 1280, 720)?;
 
     // ┌─────────────────────────────────────────────────────────────────┐
-    // │ 2. OpenAL audio                                                 │
+    // │ 2. OpenAL audio context + manager                               │
     // └─────────────────────────────────────────────────────────────────┘
-    let audio = AudioContext::new()?;
+    let audio_ctx = AudioContext::new()?;
+    let mut audio_mgr = AudioManager::new(audio_ctx)?;
     info!("audio backend ready");
+
+    // 设置默认监听者（玩家在原点，面向 -Z）
+    audio_mgr.set_listener(Listener {
+        position: Position { x: 0.0, y: 0.0, z: 0.0 },
+        ..Default::default()
+    });
 
     // ┌─────────────────────────────────────────────────────────────────┐
     // │ 3. wgpu device + swapchain surface                              │
@@ -239,14 +240,42 @@ async fn run_async() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     // ┌─────────────────────────────────────────────────────────────────┐
-    // │ 4. Game + main loop                                             │
+    // │ 4. Input manager (键位绑定) + Game                              │
     // └─────────────────────────────────────────────────────────────────┘
-    let mut game = Game::with_audio(audio);
+    let mut input_mgr = InputManager::new();
+    let mut game = Game::new();
 
-    // TODO: 推入实际的游戏场景（例如主菜单、关卡加载等）。
-    // 当前没有场景时，renderer 会每帧清屏为深蓝色。
+    // ┌─────────────────────────────────────────────────────────────────┐
+    // │ 5. 主循环（手动驱动，以便在帧间传递 InputManager 边缘状态）     │
+    // └─────────────────────────────────────────────────────────────────┘
+    let mut prev_state = InputState::default();
+    loop {
+        let mut curr = InputState::default();
+        sdl.pump(&mut curr);
 
-    game.run_loop(|state| sdl.pump(state), &mut renderer);
+        if curr.quit_requested {
+            break;
+        }
+
+        // 计算按键边缘（pressed/released）
+        input_mgr.update_edges(&mut curr, &prev_state);
+        prev_state = curr.clone();
+
+        // 示例：检测游戏动作（当前无场景时，ESC 退出）
+        if input_mgr.is_action_pressed(deusex_input::InputAction::Menu, &curr) {
+            info!("input: Menu pressed, quitting");
+            break;
+        }
+
+        // 音频每帧更新
+        audio_mgr.update();
+
+        // 游戏更新 + 渲染
+        renderer.begin_frame();
+        if !game.update(&curr, &mut renderer) {
+            break;
+        }
+    }
 
     Ok(())
 }
