@@ -5,7 +5,7 @@
 **Deus Ex GOTY / Revision** 的原生 Linux 移植项目（Rust 实现），基于 Unreal Engine 1 的游戏逻辑还原。
 
 - **状态**: 🟡 基础框架完成，Phase 2 媒体子系统 + 物理引擎已实现
-- **代码量**: ~19,500 行 Rust 代码
+- **代码量**: ~21,500 行 Rust 代码
 - **构建依赖**: Cargo nightly
 
 ---
@@ -30,8 +30,8 @@
 |------|---------|--------|------|
 | `deusex-renderer` | ~450 | 🟡 70% | wgpu 渲染管线、GPU 初始化、纹理上传、Sprite 绘制、双缓冲呈现、窗口 resize |
 | `deusex-audio` | ~450 | 🟡 70% | OpenAL 设备/Context、AudioBuffer(WAV 解析)、AudioSource(播放/音量/音调/3D位置/循环)、AudioManager(统一管理)、Listener 3D 音频、UmxPlayer(libopenmpt .umx 模块流式播放) |
-| `deusex-physics` | ~650 | 🟡 70% | 刚体物理世界、球体/AABB/平面碰撞体、AABB 广阶段剔除、窄阶段碰撞检测、冲量碰撞响应、欧拉积分、角色控制器(移动/跳跃/地面检测)、弹簧/距离/点对点约束 |
-| `deusex-ai` | ~400 | 🟡 40% | 行为树系统（Sequence/Selector/Inverter/Repeater 组合节点、Action/Condition 叶子节点）、黑板(Blackboard)、行为树执行器(BehaviorTreeExecutor)、内置行为节点(巡逻/追逐/攻击/等待) |
+| `deusex-physics` | ~750 | 🟡 75% | 刚体物理世界、球体/AABB/平面碰撞体、AABB 广阶段剔除、窗口阶段碰撞检测、冲量碰撞响应、欧拉积分、角色控制器(移动/跳跃/地面检测)、弹簧/距离/点对点约束、射线检测(raycast) |
+| `deusex-ai` | ~650 | 🟡 60% | 行为树系统（Sequence/Selector/Inverter/Repeater 组合节点、Action/Condition 叶子节点）、黑板(Blackboard)、行为树执行器(BehaviorTreeExecutor)、内置行为节点(巡逻/追逐/攻击/等待)、感知系统(视线检测/听觉)、A* 寻路、导航网格、路径跟随 |
 
 ### ✅ Phase 3 部分预启 - 游戏主循环与输入绑定
 
@@ -100,6 +100,24 @@
   - ✅ 碰撞响应：基于冲量的法向+摩擦解算、位置校正（防止下陷）
   - ✅ 欧拉积分速度/位置，重力、速度剪裁（防止隧道效应）
   - ✅ `CharacterController`: 角色控制器（WASD 移动、跳跃、重力、地面检测）
+  - ✅ `raycast()`: 射线检测（球体/AABB/平面），用于视线检测等
+
+### 🆕 Phase 2 预启 - AI 感知与导航寻路（新增）
+
+- 🧠 **deusex-ai** (AI 行为树与感知寻路):
+  - ✅ BehaviorTree: 行为树容器（根节点 + 黑板）
+  - ✅ Blackboard: 键值对黑板（Bool/Int/Float/String/Vec3）
+  - ✅ BehaviorTreeExecutor: 行为树执行器，每帧 tick
+  - ✅ Node trait: 行为节点接口（tick -> Status: Running/Success/Failure）
+  - ✅ Sequence/Selector/Inverter/Repeater: 组合与装饰节点
+  - ✅ ActionNode/ConditionNode: 叶子节点（用户自定义闭包）
+  - ✅ builtin: 内置行为节点（has_target/is_close_to_target/move_to_target/attack_target/patrol/wait）
+  - ✅ PerceptionSystem: 感知系统（视线检测+听觉）
+  - ✅ PerceptionComponent: 感知组件（FOV、视距、听觉阈值、朝向）
+  - ✅ Stimulus/PerceptionResult: 感知刺激与结果
+  - ✅ NavGrid: 导航网格（2D 网格，可通过/障碍物）
+  - ✅ AStarPathfinder: A* 寻路算法（曼哈顿启发式）
+  - ✅ Path/PathFollower: 路径与路径跟随器
 
 ### 5️⃣ Phase 3 预启 - 游戏主循环与输入绑定（新增）
 
@@ -136,9 +154,13 @@
 | 🟡 P2 | 角色控制器（移动/跳跃/地面检测） | `deusex-physics` | ✅ 已完成 |
 | 🟡 P2 | `.umx` 模块音乐播放（MOD/XM/S3M/IT/UMX） | `deusex-audio` | ✅ 已完成 |
 | 🟢 P3 | 物理约束（弹簧、距离、点对点关节） | `deusex-physics` | ✅ 已完成 |
+| 🟢 P3 | 物理射线检测（视线检测基础） | `deusex-physics` | ✅ 已完成 |
+| 🟡 P2 | AI 感知系统（视线检测、听觉） | `deusex-ai` | ✅ 已完成 |
+| 🟡 P2 | A* 导航寻路与路径跟随 | `deusex-ai` | ✅ 已完成 |
 | 🟢 P3 | AI 行为树（Sequence/Selector/Decorator） | `deusex-ai` | ✅ 已完成 |
 | 🟢 P3 | 物理引擎高级特性（软体、流体） | `deusex-physics` | ⏳ 待实现 |
-| 🟢 P3 | AI 感知系统（视线、听觉） | `deusex-ai` | ⏳ 待实现 |
+| 🟢 P3 | AI 感知高级特性（视线锥、听觉衰减） | `deusex-ai` | ⏳ 待实现 |
+| 🟢 P3 | 导航网格动态更新、 crowd 避让 | `deusex-ai` | ⏳ 待实现 |
 
 ---
 

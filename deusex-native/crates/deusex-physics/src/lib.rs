@@ -91,6 +91,19 @@ impl ConstraintId {
     }
 }
 
+/// 射线检测结果。
+#[derive(Debug, Clone, Copy)]
+pub struct RaycastHit {
+    /// 被击中的刚体 ID。
+    pub body_id: BodyId,
+    /// 射线到击中点的距离。
+    pub distance: f32,
+    /// 击中点的世界空间位置。
+    pub point: Vec3,
+    /// 击中面的法线（单位向量）。
+    pub normal: Vec3,
+}
+
 /// 刚体物理对象。
 #[derive(Debug, Clone)]
 pub struct RigidBody {
@@ -334,6 +347,138 @@ impl PhysicsWorld {
     /// 返回约束数量。
     pub fn constraint_count(&self) -> usize {
         self.constraints.len()
+    }
+
+    /// 射线检测：从 `origin` 沿 `direction` 发射射线，返回最近命中的刚体。
+    ///
+    /// `max_distance` 限制射线最大长度。返回 `None` 表示未击中任何物体。
+    pub fn raycast(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        max_distance: f32,
+    ) -> Option<RaycastHit> {
+        let dir = direction.normalize();
+        let mut closest_hit: Option<RaycastHit> = None;
+        let mut closest_dist = max_distance;
+
+        for (body_id, body) in &self.bodies {
+            if !body.enabled {
+                continue;
+            }
+
+            let hit = match body.collider {
+                ColliderShape::Sphere { radius } => {
+                    Self::raycast_sphere(origin, dir, body.position, radius)
+                }
+                ColliderShape::Aabb { min, max } => {
+                    Self::raycast_aabb(origin, dir, min, max)
+                }
+                ColliderShape::Plane { normal, distance } => {
+                    Self::raycast_plane(origin, dir, normal, distance)
+                }
+            };
+
+            if let Some(hit_dist) = hit {
+                if hit_dist < closest_dist {
+                    let point = origin + dir * hit_dist;
+                    let normal = match body.collider {
+                        ColliderShape::Sphere { .. } => (point - body.position).normalize(),
+                        ColliderShape::Aabb { .. } => {
+                            // 简单返回射线方向的反向作为近似法线
+                            -dir
+                        }
+                        ColliderShape::Plane { normal, .. } => normal,
+                    };
+                    closest_dist = hit_dist;
+                    closest_hit = Some(RaycastHit {
+                        body_id: *body_id,
+                        distance: hit_dist,
+                        point,
+                        normal,
+                    });
+                }
+            }
+        }
+
+        closest_hit
+    }
+
+    /// 射线-球体交点测试。
+    fn raycast_sphere(
+        origin: Vec3,
+        dir: Vec3,
+        center: Vec3,
+        radius: f32,
+    ) -> Option<f32> {
+        let m = origin - center;
+        let b = m.dot(dir);
+        let c = m.dot(m) - radius * radius;
+
+        if c > 0.0 && b > 0.0 {
+            return None;
+        }
+
+        let discriminant = b * b - c;
+        if discriminant < 0.0 {
+            return None;
+        }
+
+        let t = -b - discriminant.sqrt();
+        if t < 0.0 {
+            return None;
+        }
+
+        Some(t)
+    }
+
+    /// 射线-AABB 交点测试（slab 方法）。
+    fn raycast_aabb(origin: Vec3, dir: Vec3, min: Vec3, max: Vec3) -> Option<f32> {
+        let mut tmin: f32 = 0.0;
+        let mut tmax: f32 = f32::INFINITY;
+
+        for i in 0..3 {
+            let inv_d = if dir[i] != 0.0 { 1.0 / dir[i] } else { f32::INFINITY };
+            let mut t0 = (min[i] - origin[i]) * inv_d;
+            let mut t1 = (max[i] - origin[i]) * inv_d;
+            if inv_d < 0.0 {
+                std::mem::swap(&mut t0, &mut t1);
+            }
+            tmin = tmin.max(t0);
+            tmax = tmax.min(t1);
+            if tmax < tmin {
+                return None;
+            }
+        }
+
+        if tmin < 0.0 {
+            if tmax < 0.0 {
+                return None;
+            }
+            Some(tmax)
+        } else {
+            Some(tmin)
+        }
+    }
+
+    /// 射线-平面交点测试。
+    fn raycast_plane(
+        origin: Vec3,
+        dir: Vec3,
+        plane_normal: Vec3,
+        plane_distance: f32,
+    ) -> Option<f32> {
+        let denom = plane_normal.dot(dir);
+        if denom.abs() < 1e-6 {
+            return None;
+        }
+
+        let t = (plane_distance - plane_normal.dot(origin)) / denom;
+        if t < 0.0 {
+            return None;
+        }
+
+        Some(t)
     }
 
     /// 移除一个刚体。
