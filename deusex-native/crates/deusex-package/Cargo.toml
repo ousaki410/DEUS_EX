@@ -1,0 +1,22 @@
+[package]
+name = "deusex-package"
+version = "0.1.0"
+edition = "2021"
+description = "Unreal Engine 1 / Deus Ex package (.u, .utx, .umx, .uax, .dx) parser"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+bitflags = { workspace = true }
+smallvec = { workspace = true }
+ahash = { workspace = true }
+serde = { workspace = true }
+bincode = { workspace = true }
+byteorder = { workspace = true }
+walkdir = { workspace = true }
+rayon = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.0"

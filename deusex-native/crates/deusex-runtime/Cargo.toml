@@ -1,0 +1,22 @@
+[package]
+name = "deusex-runtime"
+version = "0.1.0"
+edition = "2021"
+description = "Deus Ex Native Runtime - UObject, Actor, Reflection, GC, Property System"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+bitflags = { workspace = true }
+smallvec = { workspace = true }
+ahash = { workspace = true }
+parking_lot = { workspace = true }
+serde = { workspace = true }
+glam = { workspace = true }
+tracing = { workspace = true }
+deusex-package = { path = "../deusex-package" }
+deusex-bytecode = { path = "../deusex-bytecode" }
+
+[dev-dependencies]
+criterion = "0.5"

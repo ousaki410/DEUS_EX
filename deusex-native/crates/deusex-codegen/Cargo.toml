@@ -1,0 +1,16 @@
+[package]
+name = "deusex-codegen"
+version = "0.1.0"
+edition = "2021"
+description = "Deus Ex Native - Rust code generation from decompiled UnrealScript"
+license = "MIT"
+
+[dependencies]
+deusex-ast = { path = "../deusex-ast" }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+deusex-bytecode = { path = "../deusex-bytecode" }
+deusex-package = { path = "../deusex-package" }
+syn = { version = "2.0", features = ["full"] }

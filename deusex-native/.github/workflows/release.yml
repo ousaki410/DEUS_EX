@@ -1,0 +1,183 @@
+name: Release
+
+on:
+  release:
+    types: [ published ]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Build releases for all platforms
+  build-releases:
+    name: Build Release (Target ${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: deusex-linux-x86_64
+            sw_name: deusex-linux-x86_64.tar.gz
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            artifact_name: deusex-linux-x86_64-musl
+            sw_name: deusex-linux-x86_64-musl.tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: deusex-linux-aarch64
+            sw_name: deusex-linux-aarch64.tar.gz
+          - target: x86_64-pc-windows-gnu
+            os: windows-latest
+            artifact_name: deusex-windows-x86_64
+            sw_name: deusex-windows-x86_64.tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact_name: deusex-macos-x86_64
+            sw_name: deusex-macos-x86_64.tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact_name: deusex-macos-aarch64
+            sw_name: deusex-macos-aarch64.tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Install build dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Install build dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install musl
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-${{ matrix.target }}-
+            ${{ runner.os }}-cargo-release-
+
+      - name: Build project
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Prepare binaries
+        run: |
+          cp target/${{ matrix.target }}/release/deusex-native ${{ matrix.artifact_name }}
+          cp target/${{ matrix.target }}/release/deusex-launcher ${{ matrix.artifact_name }}
+
+          if [ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]; then
+            chmod +x ${{ matrix.artifact_name }}
+          fi
+
+      - name: Create tarball (Unix-like)
+        if: matrix.os != 'windows-latest'
+        run: |
+          tar -czf ${{ matrix.sw_name }} ${{ matrix.artifact_name }}
+
+      - name: Create archive (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          Compress-Archive -Path ${{ matrix.artifact_name }} -DestinationPath ${{ matrix.sw_name }}
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ matrix.sw_name }}
+          body: |
+            ## Release ${{ github.ref_name }}
+
+            ### Binaries
+
+            * ${{ matrix.target }} - ${{ matrix.sw_name }}
+
+            ### Installation
+
+            \`\`\`bash
+            tar -xzf ${{ matrix.sw_name }}
+            cd ${{ matrix.artifact_name }}
+
+            # Make executable (Linux/macOS)
+            chmod +x deusex-native deusex-launcher
+
+            # Run
+            ./deusex-native --help
+            \`\`\`
+
+            ### System Requirements
+
+            * Linux: GLIBC 2.31+, SDL3, OpenAL, wgpu
+            * macOS: 11+, Xcode Command Line Tools, SDL3, OpenAL, Metal
+            * Windows: MSVC 2019+, Windows 10+
+
+            ### Known Issues
+
+            * GUI feature requires system SDL3 / OpenAL dev libraries
+
+            See [README.md](https://github.com/YOUR_USERNAME/deus_ex_native_p/raw/main/README.md) for more details.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Create asset manifest
+  create-manifest:
+    name: Create Asset Manifest
+    runs-on: ubuntu-latest
+    needs: build-releases
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: deploy-*
+          path: ./artifacts
+
+      - name: Create manifest
+        run: |
+          echo "# Release Assets" > ASSETS.md
+          echo "" >> ASSETS.md
+          echo "## Binaries" >> ASSETS.md
+          echo "" >> ASSETS.md
+
+          find ./artifacts -name "*.tar.gz" | sort | while read file; do
+            name=$(basename "$file")
+            size=$(du -h "$file" | cut -f1)
+            echo "- \`${name}\` - \`${size}\`" >> ASSETS.md
+          done
+
+          echo "" >> ASSETS.md
+          echo "---" >> ASSETS.md
+          echo "" >> ASSETS.md
+
+          echo "File checksums:" >> ASSETS.md
+          for file in ./artifacts/*.tar.gz; do
+            if [ -f "$file" ]; then
+              md5sum "$file" | awk '{print "- " $0}' >> ASSETS.md
+            fi
+          done
+
+      - name: Attach manifest to release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: ASSETS.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

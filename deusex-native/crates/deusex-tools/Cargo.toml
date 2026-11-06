@@ -1,0 +1,47 @@
+[package]
+name = "deusex-tools"
+version = "0.1.0"
+edition = "2021"
+description = "Deus Ex Native - Tools"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+deusex-ast = { path = "../deusex-ast" }
+deusex-package = { path = "../deusex-package" }
+deusex-bytecode = { path = "../deusex-bytecode" }
+deusex-codegen = { path = "../deusex-codegen" }
+
+[[example]]
+name = "inspect_package"
+path = "examples/inspect_package.rs"
+
+[[example]]
+name = "parse_functions"
+path = "examples/parse_functions.rs"
+
+[[example]]
+name = "generate_code"
+path = "examples/generate_code.rs"
+
+[[example]]
+name = "list_natives"
+path = "examples/list_natives.rs"
+
+[[example]]
+name = "find_native_parms"
+path = "examples/find_native_parms.rs"
+
+[[example]]
+name = "probe_props"
+path = "examples/probe_props.rs"
+
+[[example]]
+name = "find_switches"
+path = "examples/find_switches.rs"
+
+[[example]]
+name = "list_functions"
+path = "examples/list_functions.rs"

@@ -4,8 +4,8 @@
 
 **Deus Ex GOTY / Revision** 的原生 Linux 移植项目（Rust 实现），基于 Unreal Engine 1 的游戏逻辑还原。
 
-- **状态**: 🟡 基础框架完成，核心功能待实现
-- **代码量**: ~13,302 行 Rust 代码
+- **状态**: 🟡 基础框架完成，Phase 2 媒体子系统部分实现
+- **代码量**: ~14,500 行 Rust 代码
 - **构建依赖**: Cargo nightly
 
 ---
@@ -28,17 +28,17 @@
 
 | 模块 | 代码行数 | 完成度 | 说明 |
 |------|---------|--------|------|
-| `deusex-renderer` | 188 | 🟡 40% | wgpu 渲染管线框架、GPU 初始化、窗口收集 |
-| `deusex-audio` | 77 | 🟡 30% | OpenAL API 声音后端框架 |
+| `deusex-renderer` | ~450 | 🟡 60% | wgpu 渲染管线、GPU 初始化、纹理上传、Sprite 绘制、双缓冲呈现 |
+| `deusex-audio` | 77 | 🟡 30% | OpenAL 设备/Context 初始化（声音合成器待实现） |
 | `deusex-physics` | 4 | ⚪ 0% | 占位（待实现） |
 
-### ⏳ Phase 3 - 游戏逻辑待开发
+### ✅ Phase 3 部分预启 - 游戏主循环
 
 | 模块 | 代码行数 | 完成度 | 说明 |
 |------|---------|--------|------|
-| `deusex-game` | 4 | ⚪ 0% | 占位（Gooey Game Loop、Tick、UI 渲染） |
+| `deusex-game` | ~200 | 🟡 30% | 游戏主循环、固定步长 Tick（60Hz）、场景栈管理、输入分发 |
 | `deusex-ai` | 4 | ⚪ 0% | 占位（AI 行为树、移动寻路、交互） |
-| `deusex-input` | 108 | 🟡 70% | SDL3 输入处理框架 |
+| `deusex-input` | 108 | 🟡 70% | SDL3 输入处理框架（键盘/鼠标/退出事件） |
 
 ---
 
@@ -69,20 +69,48 @@
   - SDL3 窗口 + wgpu 渲染设备
   - OpenAL 音频后端
   - 异步 main loop（Tokio::main）
+  - 集成 deusex-game 游戏主循环
+
+### 4️⃣ Phase 2 - 媒体子系统（新增）
+
+- 🎨 **deusex-renderer** (wgpu):
+  - ✅ GPU 设备/队列/适配器初始化
+  - ✅ Swapchain 表面配置与双缓冲呈现
+  - ✅ RGBA8 纹理上传（TextureId 句柄管理）
+  - ✅ Sprite 渲染管线（顶点着色器 + 片元着色器，Alpha 混合）
+  - ✅ 屏幕像素坐标 → NDC 变换
+  - ✅ `begin_frame()` / `draw_sprite()` / `render()` 渲染闭环
+  - ✅ 窗口大小调整（resize）
+- 🔊 **deusex-audio** (OpenAL):
+  - ✅ OpenAL 设备/Context 初始化与销毁（RAII）
+  - ⏳ 声音合成器与音频通道（待实现）
+  - ⏳ `.umx` 模块播放（libopenmpt 绑定待确认）
+
+### 5️⃣ Phase 3 预启 - 游戏主循环（新增）
+
+- 🎮 **deusex-game**:
+  - ✅ 游戏主状态（elapsed 时间、退出请求）
+  - ✅ 固定步长 Tick（60 Hz，带累加器）
+  - ✅ 场景栈管理（push/pop/replace，enter/exit 生命周期）
+  - ✅ 输入分发给当前场景
+  - ✅ 渲染帧（变步长 + 插值 alpha）
+  - ✅ `run_loop()` 阻塞主循环入口
+  - ⏳ 实际游戏场景（主菜单、关卡等）待实现
 
 ---
 
 ## ⏳ 未实现的关键功能（优先级排序）
 
-| 优先级 | 功能 | 模块 | 估算工时 |
-|--------|------|------|---------|
-| 🔴 P0 | 渲染闭环与窗口绘制 | `deusex-renderer` | 4-6h |
-| 🔴 P0 | GUI 模式黑客键盘绑定与 UI 渲染 | `deusex-input` + UI 系统 | 3-5h |
-| 🟠 P1 | 游戏主循环与 Tick | `deusex-game` | 4-6h |
-| 🟠 P1 | 场景渲染管线 | `deusex-renderer` | 5-8h |
-| 🟡 P2 | 声音合成器与音频通道 | `deusex-audio` | 3-5h |
-| 🟡 P2 | AI 行为树与移动控制 | `deusex-ai` | 6-8h |
-| 🟢 P3 | 物理引擎（碰撞、重力） | `deusex-physics` | 4-6h |
+| 优先级 | 功能 | 模块 | 状态 |
+|--------|------|------|------|
+| 🔴 P0 | 渲染闭环（Sprite 绘制 + 双缓冲） | `deusex-renderer` | ✅ 已完成 |
+| 🔴 P0 | 游戏主循环与固定步长 Tick | `deusex-game` | ✅ 已完成 |
+| 🟠 P1 | 场景管理（栈、enter/exit 生命周期） | `deusex-game` | ✅ 已完成 |
+| 🟠 P1 | 纹理上传与 Sprite 渲染管线 | `deusex-renderer` | ✅ 已完成 |
+| 🟡 P2 | 声音合成器与音频通道 | `deusex-audio` | ⏳ 待实现 |
+| 🟡 P2 | 游戏控制输入绑定（键位映射） | `deusex-input` | ⏳ 待实现 |
+| 🟢 P3 | 物理引擎（碰撞、重力） | `deusex-physics` | ⏳ 待实现 |
+| 🟢 P3 | AI 行为树与移动控制 | `deusex-ai` | ⏳ 待实现 |
 
 ---
 

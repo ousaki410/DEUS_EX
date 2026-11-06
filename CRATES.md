@@ -208,22 +208,45 @@ fs::write("output.rs", code.source)?;
 **职责**: 渲染管线（基于 wgpu）
 
 **主要功能**:
-- GPU 设备管理
-- 窗口集成
-- 渲染循环
-- 资源加载 (纹理)
+- GPU 设备/队列/适配器初始化
+- Swapchain 表面配置与双缓冲呈现
+- RGBA8 纹理上传（TextureId 句柄管理）
+- Sprite 渲染管线（顶点着色器 + 片元着色器，Alpha 混合）
+- 屏幕像素坐标 → NDC 变换
+- `begin_frame()` / `draw_sprite()` / `render()` 渲染闭环
+- 窗口大小调整（resize）
 
-**状态**: 🟡 40% 完成（只有框架，无实际绘制）
+**模块**:
+- `Gpu`: wgpu 设备与队列
+- `Renderer`: 表面绑定的渲染上下文
+- `TextureId`, `TextureData`: 纹理资源句柄与上传描述
+- `SpriteDraw`, `SpriteRect`: 绘图指令
+
+**状态**: 🟡 60% 完成（基础渲染管线已实现，等待游戏资源接入）
 
 **使用示例**:
 ```rust
-use deusex_renderer::{Gpu, Renderer};
+use deusex_renderer::{Gpu, Renderer, TextureId, SpriteDraw, SpriteRect, TextureData};
 
 let gpu = Gpu::new().await?;
-let renderer = Renderer::new(gpu, surface, 1280, 720, format)?;
-loop {
-    renderer.render()?;
-}
+let surface = gpu.instance.create_surface(window)?;
+let mut renderer = Renderer::new(gpu, surface, 1280, 720, wgpu::TextureFormat::Bgra8UnormSrgb)?;
+
+// 上传纹理
+let tex_id = renderer.upload_texture(TextureData {
+    width: 64,
+    height: 64,
+    data: vec![255, 0, 0, 255; 64 * 64], // 纯红
+})?;
+
+// 渲染一帧
+renderer.begin_frame();
+renderer.draw_sprite(SpriteDraw {
+    texture: tex_id,
+    rect: SpriteRect { x: 100.0, y: 100.0, w: 64.0, h: 64.0 },
+    color: wgpu::Color::WHITE,
+})?;
+renderer.render()?;
 ```
 
 ---
@@ -234,10 +257,17 @@ loop {
 
 **主要功能**:
 - 音频设备管理
-- 声音播放
-- 音频通道管理
+- OpenAL 设备/Context 初始化与销毁（RAII）
 
-**状态**: 🟡 30% 完成（只有框架）
+**状态**: 🟡 30% 完成（只有后端初始化框架）
+
+**使用示例**:
+```rust
+use deusex_audio::AudioContext;
+
+let audio = AudioContext::new()?;
+// 音频设备已就绪，可开始播放声音
+```
 
 ---
 
@@ -270,13 +300,45 @@ sdl.pump(&mut state);
 **职责**: 游戏主逻辑
 
 **主要功能**:
-- Game Loop 管理
-- Tick 处理
-- 场景管理
-- AI 系统
-- 玩家控制
+- Game Loop 管理（固定步长 Tick @60Hz + 变步长渲染）
+- Tick 处理（累加器模式）
+- 场景栈管理（push/pop/replace，enter/exit 生命周期）
+- 输入分发给当前场景
+- 渲染帧协调（与 deusex-renderer 集成）
+- `run_loop()` 阻塞主循环入口
+- OpenAL 音频上下文持有（可选）
 
-**状态**: ⚪ 0% 完成（仅有占位函数）
+**状态**: 🟡 30% 完成（游戏循环框架已实现，等待实际游戏场景）
+
+**使用示例**:
+```rust
+use deusex_game::Game;
+
+let mut game = Game::new();
+game.run_loop(|input| {
+    // 从 SDL3 等输入后端填充 input
+}, &mut renderer);
+```
+
+---
+
+### deusex-audio
+
+**职责**: 音频后端（基于 OpenAL）
+
+**主要功能**:
+- 音频设备管理
+- OpenAL 设备/Context 初始化与销毁（RAII）
+
+**状态**: 🟡 30% 完成（只有后端初始化框架）
+
+**使用示例**:
+```rust
+use deusex_audio::AudioContext;
+
+let audio = AudioContext::new()?;
+// 音频设备已就绪，可开始播放声音
+```）
 
 ---
 

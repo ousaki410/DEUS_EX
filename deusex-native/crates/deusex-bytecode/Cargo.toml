@@ -1,0 +1,16 @@
+[package]
+name = "deusex-bytecode"
+version = "0.1.0"
+edition = "2021"
+description = "UnrealScript bytecode instruction set definitions and parser"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+bitflags = { workspace = true }
+serde = { workspace = true }
+byteorder = { workspace = true }
+tracing = { workspace = true }
+deusex-package = { path = "../deusex-package" }
+deusex-ast = { path = "../deusex-ast" }

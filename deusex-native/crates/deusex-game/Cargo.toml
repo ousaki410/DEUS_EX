@@ -1,0 +1,15 @@
+[package]
+name = "deusex-game"
+version = "0.1.0"
+edition = "2021"
+description = "Deus Ex Native - deusex-game"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+deusex-input = { path = "../deusex-input" }
+deusex-renderer = { path = "../deusex-renderer" }
+deusex-audio = { path = "../deusex-audio" }
+bytemuck = { workspace = true }

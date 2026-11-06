@@ -1,0 +1,12 @@
+# Prettier 配置文件
+
+{
+  "singleQuote": true,
+  "tabWidth": 4,
+  "semi": true,
+  "trailingComma": "es5",
+  "printWidth": 100,
+  "arrowParens": "avoid",
+  "endOfLine": "lf",
+  "bracketSpacing": true
+}

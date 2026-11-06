@@ -1,0 +1,15 @@
+[package]
+name = "deusex-vm"
+version = "0.1.0"
+edition = "2021"
+description = "Deus Ex Native - UnrealScript bytecode virtual machine"
+license = "MIT"
+
+[dependencies]
+deusex-package = { path = "../deusex-package" }
+deusex-bytecode = { path = "../deusex-bytecode" }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+glam = { workspace = true }
+
+[dev-dependencies]

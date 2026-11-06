@@ -1,0 +1,16 @@
+[package]
+name = "deusex-input"
+version = "0.1.0"
+edition = "2021"
+description = "Deus Ex Native - deusex-input"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+sdl3 = { workspace = true, optional = true }
+
+[features]
+default = []
+sdl3 = ["dep:sdl3"]

@@ -1,0 +1,62 @@
+[package]
+name = "deusex-native"
+version = "0.1.0"
+edition = "2021"
+description = "Deus Ex Native - native Linux port (engine code only)"
+license = "MIT"
+
+[[bin]]
+name = "deusex-native"
+path = "src/main.rs"
+
+[[example]]
+name = "run_script"
+path = "examples/run_script.rs"
+
+[dependencies]
+clap = { workspace = true }
+deusex-vm = { path = "crates/deusex-vm" }
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/deusex-package",
+    "crates/deusex-bytecode",
+    "crates/deusex-ast",
+    "crates/deusex-codegen",
+    "crates/deusex-vm",
+    "crates/deusex-runtime",
+    "crates/deusex-renderer",
+    "crates/deusex-audio",
+    "crates/deusex-input",
+    "crates/deusex-physics",
+    "crates/deusex-ai",
+    "crates/deusex-game",
+    "crates/deusex-tools",
+    "crates/deusex-launcher",
+]
+
+[workspace.dependencies]
+anyhow = "1.0"
+thiserror = "1.0"
+bitflags = "1.3"
+smallvec = "1.0"
+ahash = "0.8"
+parking_lot = "0.12"
+serde = { version = "1.0", features = ["derive"] }
+bincode = "1.3"
+byteorder = "1.5"
+glam = "0.28"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1.0", features = ["full"] }
+wgpu = { version = "0.20", features = ["wgsl"] }
+winit = "0.30"
+raw-window-handle = "0.6"
+openal = "0.2"
+libopenmpt = "0.2"
+sdl3 = "0.2"
+clap = { version = "4.5", features = ["derive"] }
+walkdir = "2.0"
+rayon = "1.0"
+bytemuck = "1.14"

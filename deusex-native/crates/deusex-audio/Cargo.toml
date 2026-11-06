@@ -1,0 +1,19 @@
+[package]
+name = "deusex-audio"
+version = "0.1.0"
+edition = "2021"
+description = "Deus Ex Native - deusex-audio"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+openal = { workspace = true, optional = true }
+openal-sys = { version = "1.16", optional = true }
+# libopenmpt = { ... optional = true }  -- crates.io 上无同名 crate，
+# 待确认正确的 Rust binding crate 名后重新加入。
+
+[features]
+default = []
+openal = ["dep:openal", "dep:openal-sys"]

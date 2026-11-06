@@ -1,0 +1,31 @@
+[package]
+name = "deusex-launcher"
+version = "0.1.0"
+edition = "2021"
+description = "Deus Ex Native - deusex-launcher"
+license = "MIT"
+
+[[bin]]
+name = "deusex-launcher"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+tokio = { workspace = true }
+wgpu = { workspace = true }
+
+# Optional GUI backend (requires system SDL3/OpenAL dev libraries).
+deusex-input = { path = "../deusex-input", optional = true }
+deusex-renderer = { path = "../deusex-renderer", optional = true }
+deusex-audio = { path = "../deusex-audio", optional = true }
+deusex-game = { path = "../deusex-game", optional = true }
+
+[features]
+default = []
+# 启用后：SDL3 窗口/输入 + wgpu 渲染设备 + OpenAL 音频。
+# 使用前需系统已安装 libsdl3-dev / libopenal-dev，并按下面命令编译：
+#   cargo run -p deusex-launcher --features gui
+gui = ["deusex-input/sdl3", "deusex-renderer", "deusex-audio/openal", "deusex-game"]

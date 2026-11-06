@@ -1,0 +1,11 @@
+[package]
+name = "deusex-ast"
+version = "0.1.0"
+edition = "2021"
+description = "Deus Ex Native - deusex-ast"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
