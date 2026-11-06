@@ -668,15 +668,108 @@ let audio = AudioContext::new()?;
 
 ### deusex-ai
 
-**职责**: AI 行为系统
+**职责**: AI 行为树系统 + 感知与导航寻路
 
 **主要功能**:
-- 行为树
-- 状态机
-- 路径导航
-- 决策 AI
+- `BehaviorTree`: 行为树，持有根节点和黑板
+- `Blackboard`: 键值对黑板，支持 Bool/Int/Float/String/Vec3 类型，供节点间共享状态
+- `BehaviorTreeExecutor`: 行为树执行器，每帧调用 tick
+- `Node` trait: 行为节点接口（tick 返回 Status: Running/Success/Failure）
+- `Sequence`: 顺序组合节点，所有子节点都成功才返回 Success
+- `Selector`: 选择器组合节点，有一个子节点成功就返回 Success
+- `Inverter`: 反转装饰器，翻转子节点的 Success/Failure
+- `Repeater`: 重复装饰器，重复执行子节点指定次数或无限
+- `ActionNode`: 动作叶子节点（用户自定义行为闭包）
+- `ConditionNode`: 条件叶子节点（用户自定义条件检查闭包）
+- `builtin`: 预定义行为节点（has_target/is_close_to_target/move_to_target/attack_target/patrol/wait）
+- `PerceptionSystem`: 感知系统（视线检测+听觉），支持用户提供的射线检测回调
+- `PerceptionComponent`: 感知组件（FOV、视距、听觉阈值、朝向、位置、视觉/听觉敏感度、FOV 边缘衰减、多点遮挡）
+- `Stimulus`/`PerceptionResult`: 感知刺激与结果结构体（支持 SoundType：脚步声/枪声/对话声/爆炸声）
+- `SenseType`: 感知类型枚举（Vision/Hearing）
+- `SoundType`: 声音类型枚举（Footstep/Conversation/Gunshot/Explosion），各自有不同衰减系数和基础听距
+- `NavGrid`: 导航网格（2D 网格，可通过/障碍物，世界↔网格坐标转换，动态障碍物支持）
+- `AStarPathfinder`: A* 寻路算法（曼哈顿启发式，四连通）
+- `Path`/`PathFollower`: 路径与路径跟随器（支持路点导航、速度控制、移动方向计算）
+- `NavTriangle`/`NavGrid::retriangulate_dirty_region`: 动态重 triangulation，障碍物变化后重建受影响三角形
+- `CrowdAgent`/`CrowdManager`: Crowd 避让系统，基于 ORCA (Optimal Reciprocal Collision Avoidance) 算法，支持碰撞时间预测和 2D 线性规划速度求解
+- `GoapState`/`GoapAction`/`GoapPlanner`/`GoapAgent`: GOAP 目标导向动作规划系统，支持固定代价和启发式搜索的固定代价搜索
 
-**状态**: ⚪ 0% 完成
+**状态**: 🟡 90% 完成（行为树 + 感知高级特性 + A* 寻路 + 导航网格动态更新 + Crowd ORCA 避让 + GOAP 规划器已实现）
+
+**模块**:
+- `BehaviorTree`: 行为树容器
+- `Blackboard`: 黑板键值对存储
+- `BehaviorTreeExecutor`: 行为树执行器
+- `Node`: 行为节点 trait
+- `Status`: 节点执行状态（Running/Success/Failure）
+- `Sequence`, `Selector`, `Inverter`, `Repeater`: 组合与装饰节点
+- `ActionNode`, `ConditionNode`: 叶子节点
+- `builtin`: 内置 AI 行为节点
+- `PerceptionSystem`, `PerceptionComponent`: 感知系统与组件
+- `Stimulus`, `PerceptionResult`, `SenseType`, `SoundType`, `HearingInfo`: 感知数据结构
+- `NavGrid`, `NavTriangle`, `AStarPathfinder`, `Path`, `PathFollower`: 导航与寻路
+- `CrowdAgent`, `CrowdManager`: Crowd 代理与 ORCA 避让管理器
+- `GoapState`, `GoapAction`, `GoapPlanner`, `GoapAgent`: GOAP 目标导向动作规划
+
+**使用示例**:
+```rust
+use deusex_ai::{BehaviorTree, BehaviorTreeExecutor, Sequence, Status};
+use deusex_ai::builtin::{has_target, is_close_to_target, attack_target, wait};
+
+let mut tree = BehaviorTree::new("GuardAI");
+let mut seq = Sequence::new("GuardSequence");
+seq.add_child(has_target());
+seq.add_child(is_close_to_target(2.0));
+seq.add_child(attack_target());
+tree.set_root(Box::new(seq));
+
+let mut executor = BehaviorTreeExecutor::new(tree);
+executor.tree_mut().blackboard_mut().set_bool("target", true);
+executor.tree_mut().blackboard_mut().set_vec3("self_pos", [0.0, 0.0, 0.0]);
+executor.tree_mut().blackboard_mut().set_vec3("target_pos", [1.0, 0.0, 0.0]);
+
+// 每帧调用
+let status = executor.tick();
+assert_eq!(status, Status::Success);
+```
+
+**GOAP 示例**:
+```rust
+use deusex_ai::{GoapAgent, GoapAction, GoapPlanner, GoapState};
+
+let mut planner = GoapPlanner::new();
+planner.add_action(GoapAction::new(
+    "pickup_item",
+    vec![("has_item".to_string(), false)],
+    vec![("has_item".to_string(), true)],
+    1.0,
+    |_| true,
+    |state| {
+        let mut new = state.clone();
+        new.set("has_item", true);
+        new
+    },
+));
+planner.add_action(GoapAction::new(
+    "use_item",
+    vec![("has_item".to_string(), true)],
+    vec![("item_used".to_string(), true)],
+    1.0,
+    |_| true,
+    |state| {
+        let mut new = state.clone();
+        new.set("item_used", true);
+        new
+    },
+));
+
+let mut state = GoapState::new();
+state.set("has_item", false);
+state.set("item_used", false);
+
+let plan = planner.plan(&state, &vec![("item_used".to_string(), true)]);
+assert_eq!(plan, Some(vec!["pickup_item", "use_item"]));
+```
 
 ---
 

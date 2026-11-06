@@ -104,6 +104,107 @@ pub struct RaycastHit {
     pub normal: Vec3,
 }
 
+/// 软体质点：质点弹簧系统中的单个质点。
+#[derive(Debug, Clone, Copy)]
+pub struct MassPoint {
+    /// 世界空间位置。
+    pub position: Vec3,
+    /// 线速度。
+    pub velocity: Vec3,
+    /// 质量。
+    pub mass: f32,
+    /// 质量。
+    /// 质量的倒数。
+    pub inverse_mass: f32,
+    /// 是否固定（不参与积分）。
+    pub is_fixed: bool,
+}
+
+/// 软体弹簧：连接两个质点的胡克定律弹簧。
+#[derive(Debug, Clone, Copy)]
+pub struct SoftSpring {
+    /// 连接的两个质点索引。
+    pub point_a: usize,
+    pub point_b: usize,
+    /// 弹簧刚度。
+    pub stiffness: f32,
+    /// 阻尼系数。
+    pub damping: f32,
+    /// 自然长度。
+    pub rest_length: f32,
+}
+
+/// 软体：由质点和弹簧组成的变形物体（如布料、胶体、有机组织）。
+#[derive(Debug, Clone)]
+pub struct SoftBody {
+    pub id: SoftBodyId,
+    /// 质点集合。
+    pub points: Vec<MassPoint>,
+    /// 弹簧集合。
+    pub springs: Vec<SoftSpring>,
+    /// 是否启用。
+    pub enabled: bool,
+}
+
+/// 软体唯一标识符。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SoftBodyId(usize);
+
+impl SoftBodyId {
+    pub fn null() -> Self {
+        Self(usize::MAX)
+    }
+    pub fn is_null(&self) -> bool {
+        self.0 == usize::MAX
+    }
+}
+
+/// 流体粒子：SPH 流体模拟中的单个粒子。
+#[derive(Debug, Clone, Copy)]
+pub struct FluidParticle {
+    /// 世界空间位置。
+    pub position: Vec3,
+    /// 线速度。
+    pub velocity: Vec3,
+    /// 质量。
+    pub mass: f32,
+    /// 密度。
+    pub density: f32,
+    /// 压力。
+    pub pressure: f32,
+}
+
+/// 流体：SPH 平滑粒子流体力学模拟的流体（如水、熔岩、黏液）。
+#[derive(Debug, Clone)]
+pub struct Fluid {
+    pub id: FluidId,
+    /// 粒子集合。
+    pub particles: Vec<FluidParticle>,
+    /// 平滑半径（影响邻域搜索范围）。
+    pub smoothing_radius: f32,
+    /// 目标密度（休止密度）。
+    pub rest_density: f32,
+    /// 压力刚度。
+    pub pressure_stiffness: f32,
+    /// 粘度系数。
+    pub viscosity: f32,
+    /// 是否启用。
+    pub enabled: bool,
+}
+
+/// 流体唯一标识符。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FluidId(usize);
+
+impl FluidId {
+    pub fn null() -> Self {
+        Self(usize::MAX)
+    }
+    pub fn is_null(&self) -> bool {
+        self.0 == usize::MAX
+    }
+}
+
 /// 刚体物理对象。
 #[derive(Debug, Clone)]
 pub struct RigidBody {
@@ -112,10 +213,11 @@ pub struct RigidBody {
     pub position: Vec3,
     /// 线速度（单位/秒）。
     pub velocity: Vec3,
+    /// 质量。
+    pub mass: f32,
     /// 合力/加速度（每帧累加，步进后清零）。
     pub force_accum: Vec3,
     /// 质量（kg）。
-    pub mass: f32,
     /// 质量的倒数（静态物体为 0）。
     pub inverse_mass: f32,
     /// 弹性系数（0 = 完全非弹性，1 = 完全弹性）。
@@ -285,6 +387,12 @@ pub struct PhysicsWorld {
     next_constraint_id: usize,
     /// 上一帧的碰撞结果（供角色控制器等使用）。
     last_manifold: CollisionManifold,
+    /// 软体集合（质点弹簧系统）。
+    soft_bodies: Vec<SoftBody>,
+    next_soft_body_id: usize,
+    /// 流体集合（SPH 流体粒子）。
+    fluids: Vec<Fluid>,
+    next_fluid_id: usize,
 }
 
 impl PhysicsWorld {
@@ -301,6 +409,10 @@ impl PhysicsWorld {
             next_body_id: 0,
             next_constraint_id: 0,
             last_manifold: CollisionManifold::default(),
+            soft_bodies: Vec::new(),
+            next_soft_body_id: 0,
+            fluids: Vec::new(),
+            next_fluid_id: 0,
         }
     }
 
@@ -347,6 +459,58 @@ impl PhysicsWorld {
     /// 返回约束数量。
     pub fn constraint_count(&self) -> usize {
         self.constraints.len()
+    }
+
+    /// 添加一个软体到世界，返回其 `SoftBodyId`。
+    pub fn add_soft_body(&mut self, body: SoftBody) -> SoftBodyId {
+        let id = if body.id.is_null() {
+            let id = SoftBodyId(self.next_soft_body_id);
+            self.next_soft_body_id += 1;
+            id
+        } else {
+            body.id
+        };
+        self.soft_bodies.push(SoftBody { id, ..body });
+        debug!("physics: added soft body {:?}", id);
+        id
+    }
+
+    /// 移除一个软体。
+    pub fn remove_soft_body(&mut self, id: SoftBodyId) -> Option<SoftBody> {
+        self.soft_bodies.iter().position(|b| b.id == id).and_then(|i| {
+            Some(self.soft_bodies.remove(i))
+        })
+    }
+
+    /// 返回软体数量。
+    pub fn soft_body_count(&self) -> usize {
+        self.soft_bodies.len()
+    }
+
+    /// 添加一个流体到世界，返回其 `FluidId`。
+    pub fn add_fluid(&mut self, fluid: Fluid) -> FluidId {
+        let id = if fluid.id.is_null() {
+            let id = FluidId(self.next_fluid_id);
+            self.next_fluid_id += 1;
+            id
+        } else {
+            fluid.id
+        };
+        self.fluids.push(Fluid { id, ..fluid });
+        debug!("physics: added fluid {:?}", id);
+        id
+    }
+
+    /// 移除一个流体。
+    pub fn remove_fluid(&mut self, id: FluidId) -> Option<Fluid> {
+        self.fluids.iter().position(|f| f.id == id).and_then(|i| {
+            Some(self.fluids.remove(i))
+        })
+    }
+
+    /// 返回流体数量。
+    pub fn fluid_count(&self) -> usize {
+        self.fluids.len()
     }
 
     /// 射线检测：从 `origin` 沿 `direction` 发射射线，返回最近命中的刚体。
@@ -535,7 +699,13 @@ impl PhysicsWorld {
             // 4. 约束求解（弹簧、距离、点对点关节等）。
             self.resolve_constraints(dt);
 
-            // 5. 保存本帧碰撞结果（供角色控制器等使用）。
+            // 5. 软体步进（质点弹簧系统）。
+            self.soft_body_step(dt);
+
+            // 6. 流体步进（SPH 平滑粒子流体力学）。
+            self.fluid_step(dt);
+
+            // 7. 保存本帧碰撞结果（供角色控制器等使用）。
             self.last_manifold = manifold;
         }
     }
@@ -1083,6 +1253,208 @@ impl PhysicsWorld {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /// 软体步进：对每个软体应用质点弹簧系统的欧拉积分。
+    ///
+    /// 对每个弹簧计算胡克定律力，应用到质点上，然后进行欧拉积分。
+    fn soft_body_step(&mut self, dt: f32) {
+        let gravity = self.config.gravity;
+
+        for soft_body in self.soft_bodies.iter_mut() {
+            if !soft_body.enabled {
+                continue;
+            }
+
+            // 第一步：计算所有弹簧力并应用到质点。
+            // 使用累积力来避免中间状态污染。
+            let mut forces: Vec<Vec3> = vec![Vec3::ZERO; soft_body.points.len()];
+
+            for spring in &soft_body.springs {
+                let pa = soft_body.points[spring.point_a];
+                let pb = soft_body.points[spring.point_b];
+
+                if pa.is_fixed && pb.is_fixed {
+                    continue;
+                }
+
+                let delta = pa.position - pb.position;
+                let dist = delta.length();
+                if dist < 1e-6 {
+                    continue;
+                }
+                let normal = delta / dist;
+
+                // 胡克定律：F = -k * (dist - rest_length) * normal
+                let extension = dist - spring.rest_length;
+                let spring_force = -spring.stiffness * extension * normal;
+
+                // 阻尼：F_d = -damping * relative_velocity_along_normal
+                let rel_vel = pa.velocity - pb.velocity;
+                let damping_force = -spring.damping * rel_vel.dot(normal) * normal;
+
+                let total_force = spring_force + damping_force;
+
+                // 应用力到两个质点（牛顿第三定律：作用力等于反作用力）。
+                if !pa.is_fixed {
+                    forces[spring.point_a] += total_force * (1.0 / pa.mass);
+                }
+                if !pb.is_fixed {
+                    forces[spring.point_b] -= total_force * (1.0 / pb.mass);
+                }
+            }
+
+            // 第二步：欧拉积分更新质点位置和速度。
+            for (i, point) in soft_body.points.iter_mut().enumerate() {
+                if point.is_fixed {
+                    continue;
+                }
+
+                // 应用重力。
+                point.velocity += gravity * dt;
+
+                // 应用弹簧力。
+                point.velocity += forces[i] * dt;
+
+                // 速度剪裁（防止隧道效应）。
+                let speed = point.velocity.length();
+                if speed > self.config.max_velocity {
+                    point.velocity = point.velocity.normalize() * self.config.max_velocity;
+                }
+
+                // 欧拉积分位置。
+                point.position += point.velocity * dt;
+            }
+        }
+    }
+
+    /// 流体步进：SPH 平滑粒子流体力学模拟。
+    ///
+    /// 对每个流体粒子计算密度、压力和粘度力，然后进行欧拉积分。
+    fn fluid_step(&mut self, dt: f32) {
+        let gravity = self.config.gravity;
+
+        for fluid in self.fluids.iter_mut() {
+            if !fluid.enabled {
+                continue;
+            }
+
+            let h = fluid.smoothing_radius;
+            let h2 = h * h;
+            let rest_density = fluid.rest_density;
+            let pressure_stiffness = fluid.pressure_stiffness;
+            let viscosity = fluid.viscosity;
+
+            // 第一步：计算每个粒子的密度（基于邻居粒子的核函数贡献）。
+            let mut densities: Vec<f32> = vec![0.0; fluid.particles.len()];
+
+            for i in 0..fluid.particles.len() {
+                let pi = fluid.particles[i].position;
+                let mut density = 0.0;
+
+                for j in 0..fluid.particles.len() {
+                    if i == j {
+                        continue;
+                    }
+                    let pj = fluid.particles[j].position;
+                    let r = (pi - pj).length();
+                    if r < h {
+                        // 立方样条核函数。
+                        let r2 = r * r / h2;
+                        let w = if r2 < 1.0 {
+                            let w_val = (1.0 - r2) * (1.0 - r2) * (1.0 - r2);
+                            315.0 / (64.0 * h.powi(9)) * w_val * w_val * w_val
+                        } else {
+                            0.0
+                        };
+                        density += fluid.particles[j].mass * w;
+                    }
+                }
+                densities[i] = density.max(rest_density * 0.1);
+            }
+
+            // 第二步：计算压力（状态方程：P = k * (rho - rest_density)）。
+            let mut pressures: Vec<f32> = vec![0.0; fluid.particles.len()];
+            for i in 0..fluid.particles.len() {
+                pressures[i] = pressure_stiffness * (densities[i] - rest_density).max(0.0);
+            }
+
+            // 第三步：计算每个粒子的压力力和粘度力。
+            let mut forces: Vec<Vec3> = vec![Vec3::ZERO; fluid.particles.len()];
+
+            for i in 0..fluid.particles.len() {
+                let pi = fluid.particles[i].position;
+                let vi = fluid.particles[i].velocity;
+                let rho_i = densities[i];
+                let p_i = pressures[i];
+
+                for j in 0..fluid.particles.len() {
+                    if i == j {
+                        continue;
+                    }
+                    let pj = fluid.particles[j].position;
+                    let vj = fluid.particles[j].velocity;
+                    let rho_j = densities[j];
+                    let p_j = pressures[j];
+
+                    let r_vec = pi - pj;
+                    let r = r_vec.length();
+                    if r < h && r > 1e-6 {
+                        let n = r_vec / r;
+
+                        // 压力力：F_p = -m_i * m_j * (p_i + p_j) / (2 * rho_i * rho_j) * grad_W
+                        // 简化版本：使用核函数导数近似。
+                        let grad_w_mag = if r < h {
+                            let r2 = r * r / h2;
+                            let dw_dr = if r2 < 1.0 {
+                                -945.0 / (32.0 * h.powi(9)) * (1.0 - r2) * (1.0 - r2)
+                            } else {
+                                0.0
+                            };
+                            dw_dr * r / h2
+                        } else {
+                            0.0
+                        };
+
+                        let pressure_force = -n * (p_i + p_j) / (2.0 * rho_i * rho_j) * grad_w_mag;
+
+                        // 粘度力：F_v = m_j * (mu / rho_j) * (v_j - v_i) * laplacian_W
+                        let laplacian_w = if r < h {
+                            let r2 = r * r / h2;
+                            if r2 < 1.0 {
+                                -945.0 / (32.0 * h.powi(9)) * (1.0 - r2) * 2.0
+                            } else {
+                                0.0
+                            }
+                        } else {
+                            0.0
+                        };
+
+                        let viscosity_force = n * (viscosity / rho_j) * (vj - vi) * laplacian_w;
+
+                        forces[i] += pressure_force + viscosity_force;
+                    }
+                }
+            }
+
+            // 第四步：欧拉积分更新流体粒子位置和速度。
+            for (i, particle) in fluid.particles.iter_mut().enumerate() {
+                // 应用重力。
+                particle.velocity += gravity * dt;
+
+                // 应用压力和粘度力。
+                particle.velocity += forces[i] * dt / densities[i];
+
+                // 速度剪裁。
+                let speed = particle.velocity.length();
+                if speed > self.config.max_velocity {
+                    particle.velocity = particle.velocity.normalize() * self.config.max_velocity;
+                }
+
+                // 欧拉积分位置。
+                particle.position += particle.velocity * dt;
             }
         }
     }

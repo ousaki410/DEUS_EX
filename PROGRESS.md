@@ -5,7 +5,7 @@
 **Deus Ex GOTY / Revision** 的原生 Linux 移植项目（Rust 实现），基于 Unreal Engine 1 的游戏逻辑还原。
 
 - **状态**: 🟡 基础框架完成，Phase 2 媒体子系统 + 物理引擎已实现
-- **代码量**: ~28,000 行 Rust 代码
+- **代码量**: ~30,000 行 Rust 代码
 - **构建依赖**: Cargo nightly
 
 ---
@@ -124,6 +124,7 @@
   - ✅ 导航网格动态更新：set_rect_obstacle/set_circle_obstacle、clear_obstacle、is_path_invalidated、clear_dirty_regions
   - ✅ 导航网格动态重 triangulation：NavTriangle 三角形网格、build_triangulation/retriangulate_dirty_region（局部重 triangulation）
   - ✅ Crowd 避让：CrowdAgent 代理状态、CrowdManager ORCA 算法（Optimal Reciprocal Collision Avoidance、碰撞时间预测、2D 线性规划速度求解）
+- ✅ GOAP 规划器：目标导向动作规划（GoapState/GoapAction/GoapPlanner/GoapAgent、A* 搜索、启发式评估、动作前置条件/效果系统、GameAgent 主循环）
 
 ### 5️⃣ Phase 3 预启 - 游戏主循环与输入绑定（新增）
 
