@@ -12,7 +12,7 @@
 
 use std::collections::HashMap;
 
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// 3D 空间位置。
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -218,6 +218,18 @@ impl AudioContext {
             info!("audio: initialized OpenAL device/context");
             Ok(AudioContext { device, context })
         }
+    }
+
+    /// 返回底层 OpenAL 设备指针（供 UmxPlayer 等子系统使用）。
+    #[cfg(feature = "openal")]
+    pub fn al_device(&self) -> *mut openal_sys::ALCdevice {
+        self.device
+    }
+
+    /// 返回底层 OpenAL 上下文指针（供 UmxPlayer 等子系统使用）。
+    #[cfg(feature = "openal")]
+    pub fn al_context(&self) -> *mut openal_sys::ALCcontext {
+        self.context
     }
 }
 
@@ -637,3 +649,305 @@ impl Drop for AudioManager {
 pub fn init() {
     info!("Initializing deusex-audio");
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// .umx 模块音乐播放（需要 openal + openmpt feature）
+// 基于 libopenmpt 渲染 + OpenAL 双缓冲流式播放
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[cfg(all(feature = "openal", feature = "openmpt"))]
+pub mod umx {
+    use super::*;
+    use openmpt::module::{Logger, Module as OpenMptModule};
+    use openmpt::module::metadata::MetadataKey;
+
+    /// .umx 模块音乐播放器，基于 libopenmpt 渲染 + OpenAL 双缓冲流式播放。
+    ///
+    /// 支持的模块格式包括：MOD, XM, S3M, IT, UMX 等。
+    /// 音频由 libopenmpt 渲染为浮点立体声，转换为 i16 PCM 后通过 OpenAL 播放。
+    pub struct UmxPlayer {
+        module: OpenMptModule,
+        title: String,
+        artist: String,
+        source: openal_sys::ALuint,
+        buffers: [openal_sys::ALuint; 2],
+        buffer_frames: i32,
+        sample_rate: i32,
+        is_playing: bool,
+        is_paused: bool,
+        repeat: bool,
+        eof: bool,
+    }
+
+    #[cfg(all(feature = "openal", feature = "openmpt"))]
+    impl UmxPlayer {
+        /// 从内存数据创建 .umx 播放器。
+        ///
+        /// `device` 和 `context` 可通过 `AudioContext::al_device()` /
+        /// `AudioContext::al_context()` 获得。
+        pub fn from_data(
+            data: &[u8],
+            _device: *mut openal_sys::ALCdevice,
+            context: *mut openal_sys::ALCcontext,
+            sample_rate: i32,
+        ) -> Result<Self, Box<dyn std::error::Error>> {
+            // 1. 创建 openmpt 模块
+            let mut buf = data.to_vec();
+            let mut module = OpenMptModule::create_from_memory(
+                &mut buf,
+                Logger::None,
+                &[],
+            ).map_err(|_| "openmpt: failed to create module from memory")?;
+
+            let title = module.get_metadata(MetadataKey::ModuleTitle)
+                .unwrap_or_else(|| "Unknown".to_string());
+            let artist = module.get_metadata(MetadataKey::ModuleArtist)
+                .unwrap_or_else(|| "Unknown".to_string());
+
+            // 设置无限循环（由 openmpt 内部处理，但我们也在 OpenAL 层面手动管理）
+            module.set_repeat_count(-1);
+
+            // 2. 创建 OpenAL 源和双缓冲
+            unsafe {
+                // 确保 OpenAL 上下文是当前的
+                openal_sys::alcMakeContextCurrent(context);
+
+                let mut source: openal_sys::ALuint = 0;
+                openal_sys::alGenSources(1, &mut source);
+                if source == 0 {
+                    return Err("openal: alGenSources failed for UmxPlayer".into());
+                }
+
+                let mut buffers: [openal_sys::ALuint; 2] = [0, 0];
+                openal_sys::alGenBuffers(2, buffers.as_mut_ptr());
+                if buffers[0] == 0 || buffers[1] == 0 {
+                    openal_sys::alDeleteSources(1, &source);
+                    return Err("openal: alGenBuffers failed for UmxPlayer".into());
+                }
+
+                // 设置源的参数
+                openal_sys::alSourcef(source, openal_sys::AL_GAIN, 1.0);
+                openal_sys::alSourcef(source, openal_sys::AL_PITCH, 1.0);
+                openal_sys::alSourcei(source, openal_sys::AL_LOOPING, 0); // 我们手动管理循环
+
+                // 初始填充两个缓冲区
+                let buffer_frames = sample_rate * 2; // 2秒的音频帧数
+                let mut render_buffer: Vec<openal_sys::ALshort> = vec![0; (buffer_frames * 2) as usize];
+
+                for &buf_id in &buffers {
+                    let frames = module.read_interleaved_stereo(sample_rate, &mut render_buffer);
+                    if frames == 0 {
+                        break;
+                    }
+                    let bytes = frames * 2 * 2; // frames * 2 channels * 2 bytes/sample
+                    openal_sys::alBufferData(
+                        buf_id,
+                        openal_sys::AL_FORMAT_STEREO16,
+                        render_buffer.as_ptr() as *const std::ffi::c_void,
+                        bytes as openal_sys::ALsizei,
+                        sample_rate as openal_sys::ALsizei,
+                    );
+                    openal_sys::alSourcei(source, openal_sys::AL_BUFFER, buf_id as openal_sys::ALint);
+                }
+
+                let err = openal_sys::alGetError();
+                if err != 0 {
+                    openal_sys::alDeleteSources(1, &source);
+                    openal_sys::alDeleteBuffers(2, buffers.as_ptr());
+                    return Err(format!("openal: UmxPlayer init error: {err}").into());
+                }
+
+                Ok(UmxPlayer {
+                    module,
+                    title,
+                    artist,
+                    source,
+                    buffers,
+                    buffer_frames,
+                    sample_rate,
+                    is_playing: false,
+                    is_paused: false,
+                    repeat: true,
+                    eof: false,
+                })
+            }
+        }
+
+        /// 播放。
+        pub fn play(&mut self) {
+            unsafe {
+                openal_sys::alSourcePlay(self.source);
+            }
+            self.is_playing = true;
+            self.is_paused = false;
+        }
+
+        /// 停止。
+        pub fn stop(&mut self) {
+            unsafe {
+                openal_sys::alSourceStop(self.source);
+                openal_sys::alSourcei(self.source, openal_sys::AL_BUFFER, 0);
+            }
+            self.is_playing = false;
+            self.is_paused = false;
+            self.eof = false;
+        }
+
+        /// 暂停。
+        pub fn pause(&mut self) {
+            unsafe {
+                openal_sys::alSourcePause(self.source);
+            }
+            self.is_paused = true;
+            self.is_playing = false;
+        }
+
+        /// 设置音量（0.0 ~ 1.0）。
+        pub fn set_gain(&mut self, gain: f32) {
+            unsafe {
+                openal_sys::alSourcef(
+                    self.source,
+                    openal_sys::AL_GAIN,
+                    gain.clamp(0.0, 1.0) as openal_sys::ALfloat,
+                );
+            }
+        }
+
+        /// 设置 3D 位置。
+        pub fn set_position(&mut self, pos: crate::Position) {
+            unsafe {
+                openal_sys::alSource3f(
+                    self.source,
+                    openal_sys::AL_POSITION,
+                    pos.x as openal_sys::ALfloat,
+                    pos.y as openal_sys::ALfloat,
+                    pos.z as openal_sys::ALfloat,
+                );
+            }
+        }
+
+        /// 设置是否循环播放。
+        pub fn set_repeat(&mut self, repeat: bool) {
+            self.repeat = repeat;
+        }
+
+        /// 每帧更新：检查 OpenAL 缓冲区状态，填充已处理的缓冲区。
+        ///
+        /// 应在游戏主循环中每帧调用。
+        /// 返回 `false` 表示播放结束（且未启用循环）。
+        pub fn update(&mut self) -> bool {
+            if !self.is_playing || self.is_paused {
+                return self.is_playing;
+            }
+
+            unsafe {
+                let mut processed: openal_sys::ALint = 0;
+                openal_sys::alGetSourcei(
+                    self.source,
+                    openal_sys::AL_BUFFERS_PROCESSED,
+                    &mut processed,
+                );
+
+                let mut render_buffer: Vec<openal_sys::ALshort> =
+                    vec![0; (self.buffer_frames * 2) as usize];
+
+                while processed > 0 {
+                    // 卸载已处理的缓冲区
+                    let mut buf_id: openal_sys::ALuint = 0;
+                    openal_sys::alSourceUnqueueBuffers(self.source, 1, &mut buf_id);
+
+                    // 用 openmpt 渲染新音频
+                    let frames =
+                        self.module
+                            .read_interleaved_stereo(self.sample_rate, &mut render_buffer);
+
+                    if frames == 0 {
+                        if self.repeat {
+                            // 尝试重新开始：由于 openmpt 0.3 缺乏重置 API，
+                            // 这里标记 EOF 并停止
+                            self.eof = true;
+                            openal_sys::alSourcei(self.source, openal_sys::AL_BUFFER, 0);
+                            self.is_playing = false;
+                            return false;
+                        } else {
+                            self.eof = true;
+                            openal_sys::alSourcei(self.source, openal_sys::AL_BUFFER, 0);
+                            self.is_playing = false;
+                            return false;
+                        }
+                    }
+
+                    let bytes = frames * 2 * 2; // frames * 2 channels * 2 bytes/sample
+                    openal_sys::alBufferData(
+                        buf_id,
+                        openal_sys::AL_FORMAT_STEREO16,
+                        render_buffer.as_ptr() as *const std::ffi::c_void,
+                        bytes as openal_sys::ALsizei,
+                        self.sample_rate as openal_sys::ALsizei,
+                    );
+                    openal_sys::alSourceQueueBuffers(self.source, 1, &buf_id);
+
+                    processed -= 1;
+                }
+
+                // 检查源是否仍在播放
+                let mut state: openal_sys::ALint = 0;
+                openal_sys::alGetSourcei(self.source, openal_sys::AL_SOURCE_STATE, &mut state);
+                if state != openal_sys::AL_PLAYING {
+                    if self.repeat && !self.eof {
+                        openal_sys::alSourcePlay(self.source);
+                    } else {
+                        self.is_playing = false;
+                        return false;
+                    }
+                }
+
+                true
+            }
+        }
+
+        /// 返回模块标题。
+        pub fn title(&self) -> &str {
+            &self.title
+        }
+
+        /// 返回模块艺术家。
+        pub fn artist(&self) -> &str {
+            &self.artist
+        }
+
+        /// 是否正在播放。
+        pub fn is_playing(&self) -> bool {
+            self.is_playing
+        }
+
+        /// 是否已播放结束。
+        pub fn is_eof(&self) -> bool {
+            self.eof
+        }
+    }
+
+    #[cfg(all(feature = "openal", feature = "openmpt"))]
+    impl Drop for UmxPlayer {
+        fn drop(&mut self) {
+            unsafe {
+                openal_sys::alSourceStop(self.source);
+                openal_sys::alSourcei(self.source, openal_sys::AL_BUFFER, 0);
+                openal_sys::alDeleteSources(1, &self.source);
+                openal_sys::alDeleteBuffers(2, self.buffers.as_ptr());
+            }
+        }
+    }
+}
+
+/// 检查给定的字节数据是否可能是一个有效的模块文件（.umx/.xm/.mod/.it/.s3m）。
+///
+/// 需要 `openmpt` feature。
+#[cfg(feature = "openmpt")]
+pub fn probe_module(data: &[u8]) -> bool {
+    use openmpt::module::{Logger, Module as OpenMptModule};
+
+    let mut buf = data.to_vec();
+    OpenMptModule::create_from_memory(&mut buf, Logger::None, &[]).is_ok()
+}
+

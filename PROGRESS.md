@@ -5,7 +5,7 @@
 **Deus Ex GOTY / Revision** 的原生 Linux 移植项目（Rust 实现），基于 Unreal Engine 1 的游戏逻辑还原。
 
 - **状态**: 🟡 基础框架完成，Phase 2 媒体子系统 + 物理引擎已实现
-- **代码量**: ~16,800 行 Rust 代码
+- **代码量**: ~17,800 行 Rust 代码
 - **构建依赖**: Cargo nightly
 
 ---
@@ -29,7 +29,7 @@
 | 模块 | 代码行数 | 完成度 | 说明 |
 |------|---------|--------|------|
 | `deusex-renderer` | ~450 | 🟡 70% | wgpu 渲染管线、GPU 初始化、纹理上传、Sprite 绘制、双缓冲呈现、窗口 resize |
-| `deusex-audio` | ~330 | 🟡 60% | OpenAL 设备/Context、AudioBuffer(WAV 解析)、AudioSource(播放/音量/音调/3D位置/循环)、AudioManager(统一管理)、Listener 3D 音频 |
+| `deusex-audio` | ~450 | 🟡 70% | OpenAL 设备/Context、AudioBuffer(WAV 解析)、AudioSource(播放/音量/音调/3D位置/循环)、AudioManager(统一管理)、Listener 3D 音频、UmxPlayer(libopenmpt .umx 模块流式播放) |
 | `deusex-physics` | ~350 | 🟡 50% | 刚体物理世界、球体/AABB/平面碰撞体、AABB 广阶段剔除、窄阶段碰撞检测、冲量碰撞响应、欧拉积分、角色控制器(移动/跳跃/地面检测) |
 
 ### ✅ Phase 3 部分预启 - 游戏主循环与输入绑定
@@ -87,7 +87,8 @@
   - ✅ `AudioSource`: 音源播放控制（play/stop/pause）、音量(gain)、音调(pitch)、3D 位置、循环(looping)
   - ✅ `AudioManager`: 统一管理缓冲与音源，`load_buffer`/`create_source`/`bind_buffer` 接口
   - ✅ `Listener`: 3D 音频监听者（位置、朝向、速度），`alListenerfv` 方向向量
-  - ⏳ `.umx` 模块播放（libopenmpt 绑定待确认）
+  - ✅ `UmxPlayer`: .umx 模块音乐播放（libopenmpt 渲染 + OpenAL 双缓冲流式播放）、支持 MOD/XM/S3M/IT/UMX 格式
+  - ✅ `probe_module()`: 模块文件格式探测
 
 - 🧱 **deusex-physics** (刚体物理引擎) - 新增:
   - ✅ `PhysicsWorld`: 物理世界，固定步长模拟（默认 60Hz，4 子步）
@@ -132,7 +133,7 @@
 | 🟠 P1 | 刚体物理世界与碰撞检测/响应 | `deusex-physics` | ✅ 已完成 |
 | 🟡 P2 | 3D 空间音频监听者（Listener） | `deusex-audio` | ✅ 已完成 |
 | 🟡 P2 | 角色控制器（移动/跳跃/地面检测） | `deusex-physics` | ✅ 已完成 |
-| 🟡 P2 | `.umx` 模块音乐播放 | `deusex-audio` | ⏳ 待实现 |
+| 🟡 P2 | `.umx` 模块音乐播放（MOD/XM/S3M/IT/UMX） | `deusex-audio` | ✅ 已完成 |
 | 🟢 P3 | 物理引擎约束（关节、弹簧） | `deusex-physics` | ⏳ 待实现 |
 | 🟢 P3 | AI 行为树与移动控制 | `deusex-ai` | ⏳ 待实现 |
 

@@ -261,8 +261,10 @@ renderer.render()?;
 - `AudioSource`: 音源播放控制（play/stop/pause）、音量(gain)、音调(pitch)、3D 位置、循环(looping)、状态查询
 - `AudioManager`: 统一管理缓冲(`load_buffer`)、音源(`create_source`)、绑定(`bind_buffer`)、播放控制、监听者(`set_listener`)
 - `Listener`: 3D 音频监听者（位置、前向/上向量、速度），通过 `alListenerfv` 设置方向
+- `UmxPlayer`: .umx 模块音乐播放器（需 `openmpt` feature），基于 libopenmpt 渲染 + OpenAL 双缓冲流式播放，支持 MOD/XM/S3M/IT/UMX 格式
+- `probe_module()`: 模块文件格式探测（需 `openmpt` feature）
 
-**状态**: 🟡 60% 完成（后端初始化 + 缓冲/音源/管理器已实现，等待 `.umx` 模块音乐播放）
+**状态**: 🟡 70% 完成（后端初始化 + 缓冲/音源/管理器 + .umx 模块音乐播放已实现）
 
 **模块**:
 - `AudioContext`: OpenAL 设备与上下文 RAII
@@ -270,6 +272,8 @@ renderer.render()?;
 - `AudioSource`, `SourceId`: 音源实例与句柄
 - `AudioManager`: 统一音频管理器
 - `SourceConfig`, `Listener`, `Position`: 配置与 3D 位置类型
+- `UmxPlayer`: .umx 模块播放器（`openmpt` feature 下可用）
+- `probe_module`: 模块格式探测函数（`openmpt` feature 下可用）
 
 **使用示例**:
 ```rust
@@ -297,6 +301,30 @@ mgr.set_listener(Listener {
     position: Position { x: 10.0, y: 0.0, z: -5.0 },
     ..Default::default()
 });
+```
+
+**.umx 模块音乐播放示例**:
+```rust
+use deusex_audio::umx::UmxPlayer;
+
+let ctx = AudioContext::new()?;
+let umx_data = std::fs::read("music.umx")?;
+
+let mut player = UmxPlayer::from_data(
+    &umx_data,
+    ctx.al_device(),
+    ctx.al_context(),
+    44100,
+)?;
+player.set_gain(0.7);
+player.play();
+
+// 每帧调用 update
+loop {
+    if !player.update() {
+        break; // 播放结束
+    }
+}
 ```
 
 ---

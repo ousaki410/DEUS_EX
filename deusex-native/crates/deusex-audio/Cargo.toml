@@ -11,9 +11,9 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 openal = { workspace = true, optional = true }
 openal-sys = { version = "1.16", optional = true }
-# libopenmpt = { ... optional = true }  -- crates.io 上无同名 crate，
-# 待确认正确的 Rust binding crate 名后重新加入。
+openmpt = { workspace = true, optional = true }
 
 [features]
 default = []
 openal = ["dep:openal", "dep:openal-sys"]
+openmpt = ["dep:openmpt"]

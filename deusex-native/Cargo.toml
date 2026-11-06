@@ -54,7 +54,7 @@ wgpu = { version = "0.20", features = ["wgsl"] }
 winit = "0.30"
 raw-window-handle = "0.6"
 openal = "0.2"
-libopenmpt = "0.2"
+openmpt = "0.3"
 sdl3 = "0.2"
 clap = { version = "4.5", features = ["derive"] }
 walkdir = "2.0"
