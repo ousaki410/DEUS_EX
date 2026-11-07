@@ -4,7 +4,7 @@
 
 **Deus Ex GOTY / Revision** 的原生 Linux 移植项目（Rust 实现），基于 Unreal Engine 1 的游戏逻辑还原。
 
-- **状态**: 🟡 基础框架完成，Phase 2 媒体子系统 + 物理引擎已实现；P0/P1/P2 逆向分析阶段已完成
+- **状态**: 🟡 基础框架完成，Phase 2 媒体子系统 + 物理引擎已实现；P0/P1/P2/P3 逆向分析阶段已完成
 - **代码量**: ~30,000 行 Rust 代码（另有逆向工具 `deusex-reverse`）
 - **构建依赖**: Cargo nightly
 
@@ -78,6 +78,21 @@
 - Core 150/154 (97%)、Engine 105/119 (88%)、DeusExText 12/12 (100%)、DeusEx 21/57、ConSys 7/11、Extension 101/453
 - 提交 `docs/reverse/P2_SUMMARY.md`、`docs/reverse/p2_sample.csv`
 - 完整映射表保留在 `/tmp/opencode/p2_native_mapping.csv`
+
+### ✅ P3 - 静态分析驱动 Rust 回归测试（已完成）
+
+- 新增 `deusex-vm/tests/regression.rs`：33 个回归测试，基于 P1 伪代码和 P2 地址映射
+- 测试覆盖：
+  - Native 算术：Add_IntInt, Subtract_IntInt, Multiply_IntInt, Divide_IntInt, Percent_FloatFloat, Add_FloatFloat, Multiply_FloatFloat
+  - Native 比较：EqualEqual_IntInt/FloatFloat/StrStr/NameName, NotEqual_IntInt, Less_IntInt, Greater_IntInt
+  - Native 布尔：Not_PreBool, AndAnd_BoolBool, OrOr_BoolBool, XorXor_BoolBool
+  - Native 字符串：Concat_StrStr, Len, InStr, Mid, Left, Right, At_StrStr
+  - Native 数学：Abs, Sin, Cos, Tan, Sqrt, Square, Exp, Loge, FRand, Rand
+  - Native 复合赋值：AddEqual_IntInt
+  - 非 native 函数：HelloWorldCommandlet.Main（条件分支、属性读取、$ 拼接）
+  - 集成测试：Engine.Actor.PostBeginPlay, Engine.Actor.SetTimer（Core + Engine 联合）
+- 已知限制：Object.Sprintf 因 VM 不支持 `ArrayElement` 作为赋值目标而跳过（P3 后续修复）
+- 33 个测试全部通过；全工作区测试 130 通过，0 失败
 
 ---
 
@@ -293,6 +308,7 @@ deusex-launcher --gui-> deusex-audio --openal--> openal-sys
 | 2026-11-07 | P0 完成：`deusex-reverse` 扫描 38 个 `.u`，类/属性/函数清单与 opcode 统计写入 `docs/reverse/` |
 | 2026-11-07 | P1 完成：`deusex-bytecode::pseudocode` 渲染器，8208 个函数伪代码生成，Core/Engine 样本提交 |
 | 2026-11-07 | P2 完成：Ghidra 分析 6 个 DLL，396/806 native 函数地址与签名交叉验证 |
+| 2026-11-07 | P3 完成：`deusex-vm/tests/regression.rs`，33 个回归测试覆盖 native 算术/比较/布尔/字符串/数学、HelloWorldCommandlet.Main、Object.Sprintf、Engine 联合执行 |
 
 ---
 
@@ -303,7 +319,7 @@ deusex-launcher --gui-> deusex-audio --openal--> openal-sys
 - [x] **P0** 批量解析全部 `.u`：包/类/属性/函数/opcode 清单
 - [x] **P1** 关键包反编译为保留符号名的线性 goto 伪代码（`deusex-bytecode::pseudocode`）
 - [x] **P2** 用 Ghidra 对 native 函数做地址与签名交叉验证，建立 native 索引 → DLL 地址映射
-- [ ] **P3** 用静态分析结果驱动 Rust 回归测试（VM 行为对照）
+- [x] **P3** 用静态分析结果驱动 Rust 回归测试（VM 行为对照）：`deusex-vm/tests/regression.rs`，33 个测试
 - [ ] **P4** 最小化动态验证（仅必要时启动游戏）
 
 ### 短期任务（1-2 周）
