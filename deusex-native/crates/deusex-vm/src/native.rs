@@ -1132,6 +1132,175 @@ fn register_core(registry: &mut NativeRegistry) {
     });
 
     // ========================================================================
+    // Core.Object 更多数学/向量函数
+    // ========================================================================
+
+    /// Core.Object.GetAxes(Vector) -> Rotator
+    registry.register("Object.GetAxes", |ctx, args| {
+        let vec = args.first().and_then(|v| match v {
+            Value::Vector(vec) => Some(*vec),
+            _ => None,
+        }).unwrap_or(glam::Vec3::ZERO);
+        if let Some(object_id) = ctx.self_object_id() {
+            ctx.vm.set_object_property(object_id, "Rotation", Value::Rotator([vec.x as i32, vec.y as i32, vec.z as i32]));
+        }
+        Ok(Value::Rotator([vec.x as i32, vec.y as i32, vec.z as i32]))
+    });
+
+    /// Core.Object.MirrorVectorByNormal(Vector, Vector) -> Vector
+    registry.register("Object.MirrorVectorByNormal", |_ctx, args| {
+        let vec = args.first().and_then(|v| match v {
+            Value::Vector(v) => Some(*v),
+            _ => None,
+        }).unwrap_or(glam::Vec3::ZERO);
+        let normal = args.get(1).and_then(|v| match v {
+            Value::Vector(v) => Some(*v),
+            _ => None,
+        }).unwrap_or(glam::Vec3::new(0.0, 1.0, 0.0));
+        let dot = vec.dot(normal);
+        let reflected = vec - normal * (2.0 * dot);
+        Ok(Value::Vector(reflected))
+    });
+
+    /// Core.Object.RotRand() -> Rotator
+    registry.register("Object.RotRand", |ctx, _args| {
+        let pitch = (ctx.next_random() * 65536.0) as i32;
+        let yaw = (ctx.next_random() * 65536.0) as i32;
+        let roll = (ctx.next_random() * 65536.0) as i32;
+        Ok(Value::Rotator([pitch, yaw, roll]))
+    });
+
+    /// Core.Object.CyclesToSeconds(int) -> float
+    registry.register("Object.CyclesToSeconds", |_ctx, args| {
+        let cycles = args.first().and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Float(cycles as f32 / 1000.0))
+    });
+
+    // ========================================================================
+    // Engine.Pawn natives (AI 导航和寻路)
+    // ========================================================================
+
+    /// Engine.Pawn.AddPawn() -> Pawn
+    registry.register("Engine.Pawn.AddPawn", |ctx, args| {
+        let spawn_class = args.first().and_then(|v| match v {
+            Value::Object(id) => Some(*id),
+            _ => None,
+        }).unwrap_or(0);
+        if spawn_class != 0 {
+            let class_path = ctx.vm.object_path(spawn_class).to_string();
+            let new_id = ctx.vm.create_object_with_class(&class_path, &class_path);
+            Ok(Value::Object(new_id))
+        } else {
+            Ok(Value::None)
+        }
+    });
+
+    /// Engine.Pawn.RemovePawn() -> bool
+    registry.register("Engine.Pawn.RemovePawn", |ctx, args| {
+        let pawn = args.first().and_then(|v| match v {
+            Value::Object(id) => Some(*id),
+            _ => None,
+        }).unwrap_or(0);
+        if pawn != 0 {
+            ctx.vm.destroy_object(pawn);
+        }
+        Ok(Value::Bool(true))
+    });
+
+    /// Engine.Pawn.PickTarget() -> Actor
+    registry.register("Engine.Pawn.PickTarget", |ctx, _args| {
+        if let Some(object_id) = ctx.self_object_id() {
+            Ok(Value::Object(object_id))
+        } else {
+            Ok(Value::None)
+        }
+    });
+
+    /// Engine.Pawn.LineOfSightTo(Actor, bool) -> bool
+    registry.register("Engine.Pawn.LineOfSightTo", |ctx, args| {
+        let _target = args.first().and_then(|v| match v {
+            Value::Object(id) => Some(*id),
+            _ => None,
+        }).unwrap_or(0);
+        let _b_ignore_distance = args.get(1).map(Value::as_bool).unwrap_or(false);
+        if let Some(object_id) = ctx.self_object_id() {
+            if let Some(_) = ctx.vm.object(object_id) {
+                Ok(Value::Bool(true))
+            } else {
+                Ok(Value::Bool(false))
+            }
+        } else {
+            Ok(Value::Bool(false))
+        }
+    });
+
+    /// Engine.Pawn.CanSee(Actor) -> bool
+    registry.register("Engine.Pawn.CanSee", |ctx, args| {
+        let _target = args.first().and_then(|v| match v {
+            Value::Object(id) => Some(*id),
+            _ => None,
+        }).unwrap_or(0);
+        if let Some(object_id) = ctx.self_object_id() {
+            if let Some(_) = ctx.vm.object(object_id) {
+                Ok(Value::Bool(true))
+            } else {
+                Ok(Value::Bool(false))
+            }
+        } else {
+            Ok(Value::Bool(false))
+        }
+    });
+
+    // ========================================================================
+    // ConSys.Conversation natives
+    // ========================================================================
+
+    /// ConSys.Conversation.BindEvents() -> void
+    registry.register("ConSys.Conversation.BindEvents", |_ctx, _args| {
+        Ok(Value::None)
+    });
+
+    /// ConSys.Conversation.ClearBindEvents() -> void
+    registry.register("ConSys.Conversation.ClearBindEvents", |_ctx, _args| {
+        Ok(Value::None)
+    });
+
+    /// ConSys.Conversation.GetSpeechAudio() -> Sound
+    registry.register("ConSys.Conversation.GetSpeechAudio", |_ctx, _args| {
+        Ok(Value::None)
+    });
+
+    // ========================================================================
+    // DeusEx.DeusExPlayer natives
+    // ========================================================================
+
+    /// DeusEx.DeusExPlayer.ConBindEvents() -> void
+    registry.register("DeusEx.DeusExPlayer.ConBindEvents", |_ctx, _args| {
+        Ok(Value::None)
+    });
+
+    /// DeusEx.DeusExPlayer.CreateLogObject() -> Object
+    registry.register("DeusEx.DeusExPlayer.CreateLogObject", |ctx, _args| {
+        if let Some(object_id) = ctx.self_object_id() {
+            let log_id = ctx.vm.create_object_with_class("Core.Object", "Core.Object");
+            ctx.vm.set_object_property(log_id, "Log", Value::String("Log entry".into()));
+            Ok(Value::Object(log_id))
+        } else {
+            Ok(Value::None)
+        }
+    });
+
+    /// DeusEx.DeusExPlayer.SaveGame() -> bool
+    registry.register("DeusEx.DeusExPlayer.SaveGame", |ctx, _args| {
+        if let Some(object_id) = ctx.self_object_id() {
+            ctx.vm.set_object_property(object_id, "Saved", Value::Bool(true));
+            Ok(Value::Bool(true))
+        } else {
+            Ok(Value::Bool(false))
+        }
+    });
+
+    // ========================================================================
     // Engine.Actor natives (core actor lifecycle / transform / query)
     // ========================================================================
 

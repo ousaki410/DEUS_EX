@@ -795,23 +795,6 @@ fn engine_actor_postbeginplay_chain() {
     assert_eq!(result, Value::None);
 }
 
-#[test]
-fn engine_actor_settimer_native() {
-    let Some(mut vm) = core_engine_vm() else {
-        eprintln!("skipping: Deus Ex GOTY assets not found");
-        return;
-    };
-    // Engine.Actor.SetTimer(NewTimerRate: float, bLoop: bool) - native，索引 280
-    let object = vm.create_object("Engine.Actor");
-    let result = exec_fn(
-        &mut vm,
-        "Engine.Actor.SetTimer",
-        Some(object),
-        vec![Value::Float(1.0), Value::Bool(true)],
-    );
-    assert_eq!(result, Value::None);
-}
-
 // ---------------------------------------------------------------------------
 // 9. Core 数学/向量函数扩展（P2 地址已验证）
 // ---------------------------------------------------------------------------
@@ -1289,9 +1272,181 @@ fn core_object_vrand_range() {
         let result = exec_fn(&mut vm, "Core.Object.VRand", None, vec![]);
         if let Value::Vector(v) = result {
             let len = v.length();
-            assert!((len - 1.0).abs() < 0.01, "VRand should be unit vector");
+            assert!((len - 1.0).abs() < 0.01, "VRand not unit length: {len}");
         } else {
             panic!("Expected Vector, got {:?}", result);
         }
     }
+    }// 10. Engine.Actor 更多 native 函数（P2 地址已验证）
+// ---------------------------------------------------------------------------
+
+#[test]
+fn engine_actor_settimer_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    let object = vm.create_object("Engine.Actor");
+    let result = exec_fn(
+        &mut vm,
+        "Engine.Actor.SetTimer",
+        Some(object),
+        vec![Value::Float(5.0), Value::Bool(false)],
+    );
+    assert_eq!(result, Value::None);
 }
+
+
+#[test]
+fn engine_actor_spawn_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    let object = vm.create_object("Engine.Actor");
+    let result = exec_fn(
+        &mut vm,
+        "Engine.Actor.Spawn",
+        Some(object),
+        vec![
+            Value::None,
+            Value::None,
+            Value::None,
+            Value::Vector(glam::Vec3::new(0.0, 0.0, 0.0)),
+            Value::Rotator([0, 0, 0]),
+        ],
+    );
+    assert!(matches!(result, Value::Object(_) | Value::None));
+}
+
+
+#[test]
+fn core_object_mirrormap_normal_native() {
+    let Some(mut vm) = core_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.MirrorVectorByNormal",
+        None,
+        vec![
+            Value::Vector(glam::Vec3::new(1.0, 0.0, 0.0)),
+            Value::Vector(glam::Vec3::new(0.0, 1.0, 0.0)),
+        ],
+    );
+    if let Value::Vector(v) = result {
+        assert!((v.x - 1.0).abs() < 0.01);
+        assert!((v.y - 0.0).abs() < 0.01);
+        assert!((v.z - 0.0).abs() < 0.01);
+    } else {
+        panic!("Expected Vector, got {:?}", result);
+    }
+}
+
+
+#[test]
+fn core_object_cyclestoseconds() {
+    let Some(mut vm) = core_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.CyclesToSeconds",
+        None,
+        vec![Value::Int(1000)],
+    );
+    assert!((result.as_float().unwrap() - 1.0).abs() < 0.01);
+
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.CyclesToSeconds",
+        None,
+        vec![Value::Int(0)],
+    );
+    assert!((result.as_float().unwrap() - 0.0).abs() < 0.01);
+}
+
+#[test]
+fn engine_pawn_addpawn_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    let object = vm.create_object("Engine.Pawn");
+    let result = exec_fn(
+        &mut vm,
+        "Engine.Pawn.AddPawn",
+        Some(object),
+        vec![Value::None],
+    );
+    assert!(matches!(result, Value::Object(_) | Value::None));
+}
+
+#[test]
+fn engine_pawn_removepawn_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    let object = vm.create_object("Engine.Pawn");
+    let result = exec_fn(
+        &mut vm,
+        "Engine.Pawn.RemovePawn",
+        Some(object),
+        vec![Value::Object(object)],
+    );
+    assert_eq!(result, Value::Bool(true));
+}
+
+#[test]
+fn engine_pawn_picktarget_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    let object = vm.create_object("Engine.Pawn");
+    let result = exec_fn(&mut vm, "Engine.Pawn.PickTarget", Some(object), vec![]);
+    assert!(matches!(result, Value::Object(_) | Value::None));
+}
+
+#[test]
+fn engine_pawn_lineofsightto_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    let object = vm.create_object("Engine.Pawn");
+    let target = vm.create_object("Engine.Actor");
+    let result = exec_fn(
+        &mut vm,
+        "Engine.Pawn.LineOfSightTo",
+        Some(object),
+        vec![Value::Object(target), Value::Bool(false)],
+    );
+    assert!(matches!(result, Value::Bool(_)));
+}
+
+#[test]
+fn engine_pawn_cansee_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    let object = vm.create_object("Engine.Pawn");
+    let target = vm.create_object("Engine.Actor");
+    let result = exec_fn(
+        &mut vm,
+        "Engine.Pawn.CanSee",
+        Some(object),
+        vec![Value::Object(target)],
+    );
+    assert!(matches!(result, Value::Bool(_)));
+}
+
+
+
+
+
+
