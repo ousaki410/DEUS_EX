@@ -1653,6 +1653,1147 @@ fn register_core(registry: &mut NativeRegistry) {
         let right: String = args.get(1).map(Value::to_display_string).unwrap_or_default();
         Ok(Value::String(format!("{left} {right}")))
     });
+
+    registry.register("ConSys.Conversation.BindActorEvents", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("ConSys.Conversation.CreateConCamera", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("ConSys.Conversation.CreateFlagRef", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("ConSys.Conversation.GetSpeechLength", |_ctx, args| {
+        let val: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(val))
+    });
+    registry.register("Core.Object.Abs", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.AddAdd_Byte", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.AddAdd_Int", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.AddAdd_PreByte", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.AddAdd_PreInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.AddEqual_ByteByte", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.AddEqual_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.AddEqual_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.AddEqual_RotatorRotator", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.AddEqual_VectorVector", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Add_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Add_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Add_RotatorRotator", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Add_VectorVector", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.AllObjects", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.AndAnd_BoolBool", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.And_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Asc", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.At_StrStr", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Atan", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Caps", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Chr", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Clamp", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.ClassIsChildOf", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.ComplementEqual_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.ComplementEqual_StrStr", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Complement_PreInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Concat_StrStr", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Cos", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.CriticalDelete", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Cross_VectorVector", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.CyclesToSeconds", |_ctx, args| {
+        let val: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(val))
+    });
+    registry.register("Core.Object.Disable", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.DivideEqual_ByteByte", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.DivideEqual_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.DivideEqual_IntFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.DivideEqual_RotatorFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.DivideEqual_VectorFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Divide_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Divide_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Divide_RotatorFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Divide_VectorFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Dot_VectorVector", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Enable", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.EqualEqual_BoolBool", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.EqualEqual_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.EqualEqual_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.EqualEqual_NameName", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.EqualEqual_ObjectObject", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.EqualEqual_RotatorRotator", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.EqualEqual_StrStr", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.EqualEqual_VectorVector", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Exp", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.FClamp", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.FMax", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.FMin", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.FRand", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.GetAxes", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.GetStateName", |_ctx, _args| {
+        Ok(Value::Name(String::new()))
+    });
+    registry.register("Core.Object.GetUnAxes", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.GotoState", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.GreaterEqual_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.GreaterEqual_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.GreaterEqual_StrStr", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.GreaterGreaterGreater_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.GreaterGreater_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.GreaterGreater_VectorRotator", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Greater_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Greater_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Greater_StrStr", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.InStr", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Invert", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.IsA", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Core.Object.IsInState", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Core.Object.Left", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Len", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Lerp", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.LessEqual_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.LessEqual_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.LessEqual_StrStr", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.LessLess_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.LessLess_VectorRotator", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Less_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Less_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Less_StrStr", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Log", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Loge", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Max", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Mid", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Min", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.MirrorVectorByNormal", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.MultiplyEqual_ByteByte", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.MultiplyEqual_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.MultiplyEqual_IntFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.MultiplyEqual_RotatorFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.MultiplyEqual_VectorFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.MultiplyEqual_VectorVector", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.MultiplyMultiply_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Multiply_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Multiply_FloatRotator", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Multiply_FloatVector", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Multiply_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Multiply_RotatorFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Multiply_VectorFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Multiply_VectorVector", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Normal", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.NotEqual_BoolBool", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.NotEqual_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.NotEqual_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.NotEqual_NameName", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.NotEqual_ObjectObject", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.NotEqual_RotatorRotator", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.NotEqual_StrStr", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.NotEqual_VectorVector", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Not_PreBool", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.OrOr_BoolBool", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Or_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Percent_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Rand", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Right", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.RotRand", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.SaveConfig", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Sin", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Smerp", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Sqrt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Square", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.SubtractEqual_ByteByte", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.SubtractEqual_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.SubtractEqual_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.SubtractEqual_RotatorRotator", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.SubtractEqual_VectorVector", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.SubtractSubtract_Byte", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.SubtractSubtract_Int", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.SubtractSubtract_PreByte", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.SubtractSubtract_PreInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Subtract_FloatFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Subtract_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Subtract_PreFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Subtract_PreInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Subtract_PreVector", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Subtract_RotatorRotator", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Subtract_VectorVector", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Tan", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.VRand", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.VSize", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Warn", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.XorXor_BoolBool", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.Xor_IntInt", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.clock", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Core.Object.unclock", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.DeusExDecoration.ConBindEvents", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.DeusExPlayer.CreateDataVaultImageNoteObject", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.DeusExPlayer.CreateDumpLocationObject", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.DeusExPlayer.CreateGameDirectoryObject", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.DeusExPlayer.CreateHistoryEvent", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.DeusExPlayer.CreateHistoryObject", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.DeusExPlayer.DeleteSaveGameFiles", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.DeusExPlayer.GetDeusExVersion", |_ctx, _args| {
+        Ok(Value::String(String::new()))
+    });
+    registry.register("DeusEx.DeusExPlayer.SetBoolFlagFromString", |_ctx, _args| {
+        Ok(Value::Name(String::new()))
+    });
+    registry.register("DeusEx.DeusExPlayer.UnloadTexture", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.DeusExSaveInfo.UpdateTimeStamp", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.ParticleIterator.UpdateParticles", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.ScriptedPawn.AddCarcass", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.ScriptedPawn.ConBindEvents", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.ScriptedPawn.GetAllianceType", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.ScriptedPawn.GetPawnAllianceType", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusEx.ScriptedPawn.HaveSeenCarcass", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("DeusEx.ScriptedPawn.IsValidEnemy", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("DeusExText.DeusExTextParser.CloseText", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusExText.DeusExTextParser.GetColor", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusExText.DeusExTextParser.GetEmailInfo", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusExText.DeusExTextParser.GetFileInfo", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusExText.DeusExTextParser.GetName", |_ctx, _args| {
+        Ok(Value::Name(String::new()))
+    });
+    registry.register("DeusExText.DeusExTextParser.GetTag", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusExText.DeusExTextParser.GetText", |_ctx, _args| {
+        Ok(Value::String(String::new()))
+    });
+    registry.register("DeusExText.DeusExTextParser.GotoLabel", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("DeusExText.DeusExTextParser.IsEOF", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("DeusExText.DeusExTextParser.OpenText", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("DeusExText.DeusExTextParser.ProcessText", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("DeusExText.DeusExTextParser.SetPlayerName", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.AIClearEvent", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.AIClearEventCallback", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.AIEndEvent", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.AIGetLightLevel", |_ctx, args| {
+        let val: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(val))
+    });
+    registry.register("Engine.Actor.AISendEvent", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.AISetEventCallback", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.AIStartEvent", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.AIVisibility", |_ctx, args| {
+        let val: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(val))
+    });
+    registry.register("Engine.Actor.Add_ColorColor", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.AllActors", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.AutonomousPhysics", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.BasedActors", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.ChildActors", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.CycleActors", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.Error", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.FastTrace", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Actor.FinishAnim", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.FinishInterpolation", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.GetAnimGroup", |_ctx, _args| {
+        Ok(Value::Name(String::new()))
+    });
+    registry.register("Engine.Actor.GetBoundingBox", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Actor.GetMapName", |_ctx, _args| {
+        Ok(Value::String(String::new()))
+    });
+    registry.register("Engine.Actor.GetMeshTexture", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.GetNextSkin", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.GetURLMap", |_ctx, _args| {
+        Ok(Value::String(String::new()))
+    });
+    registry.register("Engine.Actor.HasAnim", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Actor.InStasis", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Actor.IsAnimating", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Actor.IsOverlapping", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Actor.LastRendered", |_ctx, args| {
+        let val: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(val))
+    });
+    registry.register("Engine.Actor.LoopAnim", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.MakeNoise", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.Move", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Actor.MoveSmooth", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Actor.Multiply_ColorFloat", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.Multiply_FloatColor", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.ParabolicTrace", |_ctx, args| {
+        let val: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(val))
+    });
+    registry.register("Engine.Actor.PlayAnim", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.PlayBlendAnim", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.PlayerCanSeeMe", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Actor.RadiusActors", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.RandomBiasedRotation", |_ctx, _args| {
+        Ok(Value::Rotator([0, 0, 0]))
+    });
+    registry.register("Engine.Actor.SetCollisionSize", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Actor.SetInstantMusicVolume", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.SetInstantSoundVolume", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.SetInstantSpeechVolume", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.SetOwner", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.SetTimer", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.Sleep", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.Spawn", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.StopSound", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.Subtract_ColorColor", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.TouchingActors", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.TraceActors", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.TraceTexture", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.TraceVisibleActors", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.TweenAnim", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.TweenBlendAnim", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.VisibleActors", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Actor.VisibleCollidingActors", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.LevelInfo.InitEventManager", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.NavigationPoint.describeSpec", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.AICanHear", |_ctx, args| {
+        let val: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(val))
+    });
+    registry.register("Engine.Pawn.AICanSee", |_ctx, args| {
+        let val: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(val))
+    });
+    registry.register("Engine.Pawn.AICanSmell", |_ctx, args| {
+        let val: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(val))
+    });
+    registry.register("Engine.Pawn.AIDirectionReachable", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Pawn.AIPickRandomDestination", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Pawn.ClearPaths", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.ComputePathnodeDistances", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.EAdjustJump", |_ctx, _args| {
+        Ok(Value::Vector(glam::Vec3::ZERO))
+    });
+    registry.register("Engine.Pawn.FindBestInventoryPath", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.FindPathTo", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.FindPathToward", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.FindRandomDest", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.FindStairRotation", |_ctx, _args| {
+        Ok(Value::Int(0))
+    });
+    registry.register("Engine.Pawn.MoveTo", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.MoveToward", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.PickAnyTarget", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.PickWallAdjust", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Pawn.ReachablePathnodes", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.StrafeFacing", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.StrafeTo", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.TurnTo", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.TurnToward", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.WaitForLanding", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.Pawn.actorReachable", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.Pawn.pointReachable", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Engine.PlayerPawn.ResetKeyboard", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.PlayerPawn.UpdateURL", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.WarpZoneInfo.UnWarp", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.WarpZoneInfo.Warp", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Engine.ZoneInfo.ZoneActors", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.ExtString.GetText", |_ctx, _args| {
+        Ok(Value::String(String::new()))
+    });
+    registry.register("Extension.FlagBase.GetName", |_ctx, _args| {
+        Ok(Value::Name(String::new()))
+    });
+    registry.register("Extension.GC.EnableSpecialText", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.GC.EnableTranslucentText", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.GC.SetBaselineData", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.GC.SetBoldFont", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.GC.SetFont", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.GC.SetFonts", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.GC.SetNormalFont", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.GC.SetTextColor", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.GC.SetTileColor", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.TextWindow.GetText", |_ctx, _args| {
+        Ok(Value::String(String::new()))
+    });
+    registry.register("Extension.ViewportWindow.SetRotation", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.AddActorRef", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.AddTimer", |_ctx, _args| {
+        Ok(Value::Int(0))
+    });
+    registry.register("Extension.Window.AskParentForReconfigure", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.AskParentToShowArea", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.CarriageReturn", |_ctx, _args| {
+        Ok(Value::String(String::new()))
+    });
+    registry.register("Extension.Window.ChangeStyle", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.ConfigureChild", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.ConvertCoordinates", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.ConvertScriptString", |_ctx, _args| {
+        Ok(Value::String(String::new()))
+    });
+    registry.register("Extension.Window.ConvertVectorToCoordinates", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Extension.Window.Destroy", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.DestroyAllChildren", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.EnableSpecialText", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.EnableTranslucentText", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.FindWindow", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GetBottomChild", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GetClientObject", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GetCursorPos", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GetFocusWindow", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GetGC", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GetHigherSibling", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GetLowerSibling", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GetModalWindow", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GetParent", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GetPlayerPawn", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GetRootWindow", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GetTabGroupWindow", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GetTickOffset", |_ctx, args| {
+        let val: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(val))
+    });
+    registry.register("Extension.Window.GetTopChild", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.GrabMouse", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.Hide", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.IsActorValid", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Extension.Window.IsFocusWindow", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Extension.Window.IsKeyDown", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Extension.Window.IsPointInWindow", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Extension.Window.IsSensitive", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Extension.Window.IsVisible", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Extension.Window.Lower", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.MoveFocusDown", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.MoveFocusLeft", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.MoveFocusRight", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.MoveFocusUp", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.MoveTabGroupNext", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.MoveTabGroupPrev", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.NewChild", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.PlaySound", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.QueryGranularity", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.QueryPreferredHeight", |_ctx, args| {
+        let val: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(val))
+    });
+    registry.register("Extension.Window.QueryPreferredSize", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.QueryPreferredWidth", |_ctx, args| {
+        let val: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(val))
+    });
+    registry.register("Extension.Window.Raise", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.ReleaseGC", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.RemoveActorRef", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.RemoveTimer", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.ResetHeight", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.ResetSize", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.ResetWidth", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.ResizeChild", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetAcceleratorText", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetBackground", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetBackgroundSmoothing", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetBackgroundStretching", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetBackgroundStyle", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetBaselineData", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetBoldFont", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetChildVisibility", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetClientObject", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetConfiguration", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetCursorPos", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetDefaultCursor", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetFocusSounds", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetFocusWindow", |_ctx, _args| {
+        Ok(Value::Bool(false))
+    });
+    registry.register("Extension.Window.SetFont", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetFonts", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetHeight", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetNormalFont", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetPos", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetSelectability", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetSensitivity", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetSize", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetSoundVolume", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetTextColor", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetTileColor", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetVisibilitySounds", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetWidth", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.SetWindowAlignments", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.Show", |_ctx, _args| {
+        Ok(Value::None)
+    });
+    registry.register("Extension.Window.UngrabMouse", |_ctx, _args| {
+        Ok(Value::None)
+    });
 }
 
 #[cfg(test)]

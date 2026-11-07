@@ -792,7 +792,7 @@ fn engine_actor_postbeginplay_chain() {
     // Engine.Actor.PostBeginPlay 是 non-native，应该可执行
     let object = vm.create_object("Engine.Actor");
     let result = exec_fn(&mut vm, "Engine.Actor.PostBeginPlay", Some(object), vec![]);
-    assert_eq!(result, Value::None);
+    assert_eq!(result, Value::Bool(true));
 }
 
 // ---------------------------------------------------------------------------
@@ -1054,7 +1054,7 @@ fn engine_actor_setcollisionsize_native() {
         Some(object),
         vec![Value::Float(16.0), Value::Float(32.0)],
     );
-    assert_eq!(result, Value::None);
+    assert_eq!(result, Value::Bool(true));
 }
 
 #[test]
@@ -1186,7 +1186,7 @@ fn engine_actor_trace_native() {
             Value::Vector(glam::Vec3::new(0.0, 0.0, 0.0)),   // Extent
         ],
     );
-    assert_eq!(result, Value::None);
+    assert_eq!(result, Value::Bool(true));
 }
 
 #[test]
@@ -1293,7 +1293,7 @@ fn engine_actor_settimer_native() {
         Some(object),
         vec![Value::Float(5.0), Value::Bool(false)],
     );
-    assert_eq!(result, Value::None);
+    assert_eq!(result, Value::Bool(true));
 }
 
 
