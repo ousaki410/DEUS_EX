@@ -4,8 +4,8 @@
 //!   * default (no features): resource-directory detector only. Safe to build
 //!     on any machine, no native game library required.
 //!   * `--features gui`: real engine entry point. Requires system
-//!     `libsdl3-dev` (and wgpu with raw-window-handle support).
-//!   * `--features gui,audio`: additionally requires `libopenal-dev` for
+//!     libsdl3-dev (and wgpu with raw-window-handle support).
+//!   * `--features gui,audio`: additionally requires libopenal-dev for
 //!     OpenAL audio.
 //!
 //!   cargo run -p deusex-launcher --features gui
@@ -41,7 +41,6 @@ struct Args {
 }
 
 fn locate_installation(args: &Args) -> Option<Installation> {
-    // Explicit overrides take precedence.
     if let Some(dir) = &args.asset_dir {
         let root = dir.canonicalize().ok()?;
         let system = if root.join("system").join("Core.u").is_file() {
@@ -82,7 +81,6 @@ fn locate_installation(args: &Args) -> Option<Installation> {
         return None;
     }
 
-    // Auto-detect: CWD-relative, env vars, then well-known absolute paths.
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Ok(cwd) = std::env::current_dir() {
         candidates.push(cwd.join("goty"));
@@ -115,8 +113,6 @@ fn locate_installation(args: &Args) -> Option<Installation> {
     None
 }
 
-/// Return the `system` directory (containing the `.u` packages) inside a game
-/// root, if present.
 fn system_dir(root: &Path) -> Option<PathBuf> {
     let direct = root.join("system");
     if direct.join("Core.u").is_file() {
@@ -129,9 +125,9 @@ fn system_dir(root: &Path) -> Option<PathBuf> {
     None
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Mode A: no `gui` feature — resource-directory detector only.
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[cfg(not(feature = "gui"))]
 fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -183,21 +179,33 @@ fn main() {
     }
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Mode B: `gui` feature — real engine entry point (SDL3 + wgpu + OpenAL).
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Mode B: `gui` feature — real engine entry point (winit + wgpu + OpenAL).
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[cfg(feature = "gui")]
+use deusex_game::Game;
+#[cfg(feature = "gui")]
+use deusex_input::{InputManager, InputState};
+#[cfg(feature = "gui")]
+use deusex_renderer::{Gpu, Renderer};
+#[cfg(feature = "gui")]
+use tracing::info;
+#[cfg(feature = "gui")]
+use winit::application::ApplicationHandler;
+#[cfg(feature = "gui")]
+use winit::event::{KeyEvent, WindowEvent};
+#[cfg(feature = "gui")]
+use winit::event_loop::{ActiveEventLoop, EventLoop};
+#[cfg(feature = "gui")]
+use winit::keyboard::{Key, NamedKey};
+#[cfg(feature = "gui")]
+use winit::window::WindowAttributes;
+#[cfg(feature = "audio")]
+use deusex_audio::{AudioContext, AudioManager, Listener, Position};
 
 #[cfg(feature = "gui")]
 fn run() -> Result<(), Box<dyn std::error::Error>> {
-    #[cfg(feature = "audio")]
-    use deusex_audio::{AudioContext, AudioManager, Listener, Position};
-    use deusex_game::Game;
-    use deusex_input::{InputManager, InputState};
-    use deusex_renderer::{Gpu, Renderer};
-    use tracing::info;
-    use winit::event::{Event, WindowEvent};
-    use winit::event_loop::{ControlFlow, EventLoop};
-    use winit::window::WindowBuilder;
 
     let args = Args::parse();
     let installation =
@@ -210,100 +218,132 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("  root:     {}", installation.root.display());
     println!("  system:   {}", installation.system.display());
 
-    // ┌─────────────────────────────────────────────────────────────────┐
-    // │ 1. winit window + input                                         │
-    // └─────────────────────────────────────────────────────────────────┘
     let event_loop = EventLoop::new()?;
-    let window = WindowBuilder::new()
-        .with_title("Deus Ex Native")
-        .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
-        .build(&event_loop)?;
 
-    // ┌─────────────────────────────────────────────────────────────────┐
-    // │ 2. OpenAL audio context + manager (optional, --features audio)  │
-    // └─────────────────────────────────────────────────────────────────┘
+    let mut app = App::new()?;
+
+    event_loop.run_app(&mut app)?;
+    Ok(())
+}
+
+/// GUI 应用程序状态，实现 winit 的 ApplicationHandler。
+#[cfg(feature = "gui")]
+struct App {
+    window: Option<winit::window::Window>,
+    renderer: Option<Renderer>,
+    input_mgr: InputManager,
+    game: Game,
+    prev_state: InputState,
     #[cfg(feature = "audio")]
-    {
-        let audio_ctx = AudioContext::new()?;
-        let mut audio_mgr = AudioManager::new(audio_ctx)?;
-        info!("audio backend ready");
+    audio_mgr: AudioManager,
+}
 
-        // 设置默认监听者（玩家在原点，面向 -Z）
-        audio_mgr.set_listener(Listener {
-            position: Position { x: 0.0, y: 0.0, z: 0.0 },
-            ..Default::default()
-        });
+#[cfg(feature = "gui")]
+impl App {
+    fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Self {
+            window: None,
+            renderer: None,
+            input_mgr: InputManager::new(),
+            game: Game::new(),
+            prev_state: InputState::default(),
+            #[cfg(feature = "audio")]
+            audio_mgr: AudioManager::new(AudioContext::new()?)?,
+        })
+    }
+}
+
+#[cfg(feature = "gui")]
+impl ApplicationHandler<()> for App {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        if self.window.is_some() {
+            return;
+        }
+
+        let attributes = WindowAttributes::default()
+            .with_title("Deus Ex Native")
+            .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0));
+        let window = event_loop.create_window(attributes).unwrap();
+
+        let gpu = pollster::block_on(Gpu::new()).unwrap();
+        let surface = gpu.instance.create_surface(&window).unwrap();
+        // wgpu::Surface<'_> 借用 window，但 Renderer::new 要求 Surface<'static>。
+        // 由于 window 和 renderer 都在 App 中，它们会同时销毁，使用 unsafe
+        // 将 surface 生命周期提升为 'static 是安全的。
+        let surface = unsafe { std::mem::transmute::<wgpu::Surface<'_>, wgpu::Surface<'static>>(surface) };
+        let renderer = Renderer::new(
+            gpu,
+            surface,
+            1280,
+            720,
+            wgpu::TextureFormat::Bgra8UnormSrgb,
+        )
+        .unwrap();
+
+        self.window = Some(window);
+        self.renderer = Some(renderer);
+
+        #[cfg(feature = "audio")]
+        {
+            info!("audio backend ready");
+            self.audio_mgr
+                .set_listener(Listener {
+                    position: Position { x: 0.0, y: 0.0, z: 0.0 },
+                    ..Default::default()
+                });
+        }
     }
 
-    // ┌─────────────────────────────────────────────────────────────────┐
-    // │ 3. wgpu device + swapchain surface                              │
-    // └─────────────────────────────────────────────────────────────────┘
-    let gpu = pollster::block_on(Gpu::new())?;
-    let surface = wgpu::Surface::new(window, &gpu.instance)?;
-    let mut renderer = Renderer::new(
-        gpu,
-        surface,
-        1280,
-        720,
-        wgpu::TextureFormat::Bgra8UnormSrgb,
-    )?;
-
-    // ┌─────────────────────────────────────────────────────────────────┐
-    // │ 4. Input manager (键位绑定) + Game                              │
-    // └─────────────────────────────────────────────────────────────────┘
-    let mut input_mgr = InputManager::new();
-    let mut game = Game::new();
-
-    // ┌─────────────────────────────────────────────────────────────────┐
-    // │ 5. 主循环（winit 事件驱动）                                      │
-    // └─────────────────────────────────────────────────────────────────┘
-    let mut prev_state = InputState::default();
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Poll;
-
+    fn window_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _window_id: winit::window::WindowId,
+        event: WindowEvent,
+    ) {
         match event {
-            Event::WindowEvent { ref event, window_id }
-                if window_id == window.id() =>
-            {
-                match event {
-                    WindowEvent::CloseRequested
-                    | WindowEvent::KeyboardInput {
-                        event:
-                            winit::event::KeyEvent {
-                                logical_key: winit::keyboard::Key::Named(
-                                    winit::keyboard::NamedKey::Escape,
-                                ),
-                                ..
-                            },
-                    } => *control_flow = ControlFlow::Exit,
-                    _ => {}
-                }
-            }
-            Event::AboutToWait => {
-                let mut curr = InputState::default();
-
-                input_mgr.update_edges(&mut curr, &prev_state);
-                prev_state = curr.clone();
-
-                if input_mgr.is_action_pressed(deusex_input::InputAction::Menu, &curr) {
-                    info!("input: Menu pressed, quitting");
-                    *control_flow = ControlFlow::Exit;
-                }
-
-                #[cfg(feature = "audio")]
-                {
-                    // 音频每帧更新
-                    audio_mgr.update();
-                }
-
-                renderer.begin_frame();
-                if !game.update(&curr, &mut renderer) {
-                    *control_flow = ControlFlow::Exit;
+            WindowEvent::CloseRequested => _event_loop.exit(),
+            WindowEvent::KeyboardInput {
+                event: KeyEvent { logical_key, .. },
+                ..
+            } => {
+                if logical_key == Key::Named(NamedKey::Escape) {
+                    _event_loop.exit();
                 }
             }
             _ => {}
         }
-    });
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        let mut curr = InputState::default();
+
+        self.input_mgr.update_edges(&mut curr, &self.prev_state);
+        self.prev_state = curr.clone();
+
+        if self
+            .input_mgr
+            .is_action_pressed(deusex_input::InputAction::Menu, &curr)
+        {
+            info!("input: Menu pressed, quitting");
+            _event_loop.exit();
+        }
+
+        #[cfg(feature = "audio")]
+        {
+            self.audio_mgr.update();
+        }
+
+        self.renderer
+            .as_mut()
+            .unwrap()
+            .begin_frame();
+        if !self
+            .game
+            .update(&curr, self.renderer.as_mut().unwrap())
+        {
+            _event_loop.exit();
+        }
+    }
 }
 
 #[cfg(feature = "gui")]

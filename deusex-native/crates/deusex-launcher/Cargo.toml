@@ -24,7 +24,7 @@ raw-window-handle = { workspace = true }
 # OpenAL audio is optional; enable `audio` feature if libopenal-dev is installed.
 deusex-input = { path = "../deusex-input", optional = true }
 deusex-renderer = { path = "../deusex-renderer", optional = true }
-deusex-audio = { path = "../deusex-audio", optional = true }
+deusex-audio = { path = "../deusex-audio", optional = true, features = ["openal"] }
 deusex-game = { path = "../deusex-game", optional = true }
 
 [features]
@@ -34,4 +34,4 @@ default = []
 # 如系统已安装 libopenal-dev，可额外启用 audio 以获得真实音频后端：
 #   cargo run -p deusex-launcher --features gui,audio
 gui = ["winit", "deusex-input", "deusex-renderer", "deusex-game"]
-audio = ["deusex-audio/openal"]
+audio = ["deusex-audio"]
