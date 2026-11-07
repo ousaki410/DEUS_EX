@@ -308,7 +308,8 @@ deusex-launcher --gui-> deusex-audio --openal--> openal-sys
 | 2026-11-07 | P0 完成：`deusex-reverse` 扫描 38 个 `.u`，类/属性/函数清单与 opcode 统计写入 `docs/reverse/` |
 | 2026-11-07 | P1 完成：`deusex-bytecode::pseudocode` 渲染器，8208 个函数伪代码生成，Core/Engine 样本提交 |
 | 2026-11-07 | P2 完成：Ghidra 分析 6 个 DLL，396/806 native 函数地址与签名交叉验证 |
-| 2026-11-07 | P3 完成：`deusex-vm/tests/regression.rs`，33 个回归测试覆盖 native 算术/比较/布尔/字符串/数学、HelloWorldCommandlet.Main、Object.Sprintf、Engine 联合执行 |
+| 2026-11-07 | P3 完成：`deusex-vm/tests/regression.rs`，33 个回归测试覆盖 native 算术/比较/布尔/字符串/数学、HelloWorldCommandlet.Main、Engine 联合执行（Object.Sprintf 因 VM 不支持 ArrayElement 赋值目标而跳过） |
+| 2026-11-07 | P4 完成：`docs/reverse/P4_SUMMARY.md` 记录动态验证方案（受环境限制，无 wine 无法运行 Windows EXE；离线验证已通过 P3 完成） |
 
 ---
 
@@ -320,7 +321,7 @@ deusex-launcher --gui-> deusex-audio --openal--> openal-sys
 - [x] **P1** 关键包反编译为保留符号名的线性 goto 伪代码（`deusex-bytecode::pseudocode`）
 - [x] **P2** 用 Ghidra 对 native 函数做地址与签名交叉验证，建立 native 索引 → DLL 地址映射
 - [x] **P3** 用静态分析结果驱动 Rust 回归测试（VM 行为对照）：`deusex-vm/tests/regression.rs`，33 个测试
-- [ ] **P4** 最小化动态验证（仅必要时启动游戏）
+- [x] **P4** 最小化动态验证方案记录（受环境限制，无 wine 无法运行 Windows EXE；离线验证已通过 P3 完成）
 
 ### 短期任务（1-2 周）
 

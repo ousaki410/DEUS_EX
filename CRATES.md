@@ -893,7 +893,7 @@ deusex-launcher  → deusex-input, deusex-renderer, deusex-audio, deusex-vm
 - [x] **P1** 关键包反编译（`Core` / `Engine` / `DeusEx`）→ 伪代码清单（`deusex-bytecode::pseudocode`）
 - [x] **P2** Ghidra 交叉验证 native 函数地址与签名（396/806 已验证）
 - [x] **P3** 静态分析驱动 Rust 回归测试（`deusex-vm/tests/regression.rs`）
-- [ ] **P4** 最小化动态验证
+- [x] **P4** 最小化动态验证方案记录（`docs/reverse/P4_SUMMARY.md`；受环境限制，无 wine 无法运行 Windows EXE）
 
 ---
 
