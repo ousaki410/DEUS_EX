@@ -16,8 +16,12 @@ tracing = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 tokio = { workspace = true }
 wgpu = { workspace = true }
+winit = { workspace = true, optional = true }
+pollster = { workspace = true }
+raw-window-handle = { workspace = true }
 
-# Optional GUI backend (requires system SDL3/OpenAL dev libraries).
+# Optional GUI backend (requires system SDL3 dev library).
+# OpenAL audio is optional; enable `audio` feature if libopenal-dev is installed.
 deusex-input = { path = "../deusex-input", optional = true }
 deusex-renderer = { path = "../deusex-renderer", optional = true }
 deusex-audio = { path = "../deusex-audio", optional = true }
@@ -25,7 +29,9 @@ deusex-game = { path = "../deusex-game", optional = true }
 
 [features]
 default = []
-# 启用后：SDL3 窗口/输入 + wgpu 渲染设备 + OpenAL 音频。
-# 使用前需系统已安装 libsdl3-dev / libopenal-dev，并按下面命令编译：
+# 启用后：winit 窗口/输入 + wgpu 渲染设备。音频保持占位（无 OpenAL）。
 #   cargo run -p deusex-launcher --features gui
-gui = ["deusex-input/sdl3", "deusex-renderer", "deusex-audio/openal", "deusex-game"]
+# 如系统已安装 libopenal-dev，可额外启用 audio 以获得真实音频后端：
+#   cargo run -p deusex-launcher --features gui,audio
+gui = ["winit", "deusex-input", "deusex-renderer", "deusex-game"]
+audio = ["deusex-audio/openal"]

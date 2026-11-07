@@ -4,15 +4,17 @@
 //!   * default (no features): resource-directory detector only. Safe to build
 //!     on any machine, no native game library required.
 //!   * `--features gui`: real engine entry point. Requires system
-//!     `libsdl3-dev` / `libopenal-dev` (and wgpu built with
-//!     `raw-window-handle`). See `deusex-input` / `deusex-audio` /
-//!     `deusex-renderer` for the missing-library fallback behavior.
+//!     `libsdl3-dev` (and wgpu with raw-window-handle support).
+//!   * `--features gui,audio`: additionally requires `libopenal-dev` for
+//!     OpenAL audio.
 //!
 //!   cargo run -p deusex-launcher --features gui
+//!   cargo run -p deusex-launcher --features gui,audio
 
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
+use raw_window_handle::HasRawWindowHandle as _;
 
 /// Discovered game installation (GOTY or Revision).
 #[derive(Debug)]
@@ -186,15 +188,16 @@ fn main() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[cfg(feature = "gui")]
-async fn run_async() -> Result<(), Box<dyn std::error::Error>> {
-    use deusex_audio::{AudioContext, AudioManager, Listener, Position, SourceConfig};
+fn run() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(feature = "audio")]
+    use deusex_audio::{AudioContext, AudioManager, Listener, Position};
     use deusex_game::Game;
-    use deusex_input::{
-        sdl::{SdlContext, SdlWindow},
-        InputManager, InputState,
-    };
+    use deusex_input::{InputManager, InputState};
     use deusex_renderer::{Gpu, Renderer};
     use tracing::info;
+    use winit::event::{Event, WindowEvent};
+    use winit::event_loop::{ControlFlow, EventLoop};
+    use winit::window::WindowBuilder;
 
     let args = Args::parse();
     let installation =
@@ -208,29 +211,35 @@ async fn run_async() -> Result<(), Box<dyn std::error::Error>> {
     println!("  system:   {}", installation.system.display());
 
     // ┌─────────────────────────────────────────────────────────────────┐
-    // │ 1. SDL3 window + input                                          │
+    // │ 1. winit window + input                                         │
     // └─────────────────────────────────────────────────────────────────┘
-    let mut sdl = SdlContext::init()?;
-    let SdlWindow { window } = sdl.create_window("Deus Ex Native", 1280, 720)?;
+    let event_loop = EventLoop::new()?;
+    let window = WindowBuilder::new()
+        .with_title("Deus Ex Native")
+        .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
+        .build(&event_loop)?;
 
     // ┌─────────────────────────────────────────────────────────────────┐
-    // │ 2. OpenAL audio context + manager                               │
+    // │ 2. OpenAL audio context + manager (optional, --features audio)  │
     // └─────────────────────────────────────────────────────────────────┘
-    let audio_ctx = AudioContext::new()?;
-    let mut audio_mgr = AudioManager::new(audio_ctx)?;
-    info!("audio backend ready");
+    #[cfg(feature = "audio")]
+    {
+        let audio_ctx = AudioContext::new()?;
+        let mut audio_mgr = AudioManager::new(audio_ctx)?;
+        info!("audio backend ready");
 
-    // 设置默认监听者（玩家在原点，面向 -Z）
-    audio_mgr.set_listener(Listener {
-        position: Position { x: 0.0, y: 0.0, z: 0.0 },
-        ..Default::default()
-    });
+        // 设置默认监听者（玩家在原点，面向 -Z）
+        audio_mgr.set_listener(Listener {
+            position: Position { x: 0.0, y: 0.0, z: 0.0 },
+            ..Default::default()
+        });
+    }
 
     // ┌─────────────────────────────────────────────────────────────────┐
     // │ 3. wgpu device + swapchain surface                              │
     // └─────────────────────────────────────────────────────────────────┘
-    let gpu = Gpu::new().await?;
-    let surface: wgpu::Surface<'static> = gpu.instance.create_surface(window)?;
+    let gpu = pollster::block_on(Gpu::new())?;
+    let surface = wgpu::Surface::new(window, &gpu.instance)?;
     let mut renderer = Renderer::new(
         gpu,
         surface,
@@ -246,44 +255,60 @@ async fn run_async() -> Result<(), Box<dyn std::error::Error>> {
     let mut game = Game::new();
 
     // ┌─────────────────────────────────────────────────────────────────┐
-    // │ 5. 主循环（手动驱动，以便在帧间传递 InputManager 边缘状态）     │
+    // │ 5. 主循环（winit 事件驱动）                                      │
     // └─────────────────────────────────────────────────────────────────┘
     let mut prev_state = InputState::default();
-    loop {
-        let mut curr = InputState::default();
-        sdl.pump(&mut curr);
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Poll;
 
-        if curr.quit_requested {
-            break;
+        match event {
+            Event::WindowEvent { ref event, window_id }
+                if window_id == window.id() =>
+            {
+                match event {
+                    WindowEvent::CloseRequested
+                    | WindowEvent::KeyboardInput {
+                        event:
+                            winit::event::KeyEvent {
+                                logical_key: winit::keyboard::Key::Named(
+                                    winit::keyboard::NamedKey::Escape,
+                                ),
+                                ..
+                            },
+                    } => *control_flow = ControlFlow::Exit,
+                    _ => {}
+                }
+            }
+            Event::AboutToWait => {
+                let mut curr = InputState::default();
+
+                input_mgr.update_edges(&mut curr, &prev_state);
+                prev_state = curr.clone();
+
+                if input_mgr.is_action_pressed(deusex_input::InputAction::Menu, &curr) {
+                    info!("input: Menu pressed, quitting");
+                    *control_flow = ControlFlow::Exit;
+                }
+
+                #[cfg(feature = "audio")]
+                {
+                    // 音频每帧更新
+                    audio_mgr.update();
+                }
+
+                renderer.begin_frame();
+                if !game.update(&curr, &mut renderer) {
+                    *control_flow = ControlFlow::Exit;
+                }
+            }
+            _ => {}
         }
-
-        // 计算按键边缘（pressed/released）
-        input_mgr.update_edges(&mut curr, &prev_state);
-        prev_state = curr.clone();
-
-        // 示例：检测游戏动作（当前无场景时，ESC 退出）
-        if input_mgr.is_action_pressed(deusex_input::InputAction::Menu, &curr) {
-            info!("input: Menu pressed, quitting");
-            break;
-        }
-
-        // 音频每帧更新
-        audio_mgr.update();
-
-        // 游戏更新 + 渲染
-        renderer.begin_frame();
-        if !game.update(&curr, &mut renderer) {
-            break;
-        }
-    }
-
-    Ok(())
+    });
 }
 
 #[cfg(feature = "gui")]
-#[tokio::main]
-async fn main() {
-    if let Err(err) = run_async().await {
+fn main() {
+    if let Err(err) = run() {
         eprintln!("error: {err}");
         eprintln!(
             "  hint: the `gui` feature needs system SDL3/OpenAL dev libraries \
