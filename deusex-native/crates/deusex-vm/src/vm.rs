@@ -1646,6 +1646,36 @@ impl Frame {
                 // 将修改后的数组写回数组变量（例如 InstanceVariable(S)）
                 self.assign(vm, array, arr)
             }
+            ExprKind::Context { context: ctx_expr, value: prop_expr, .. }
+            | ExprKind::ClassContext { context: ctx_expr, value: prop_expr, .. } => {
+                let obj = self.eval(vm, ctx_expr)?;
+                let object_id = match obj {
+                    Value::Object(id) => id,
+                    // Context target may evaluate to None before the object
+                    // is fully initialized; treat as object 0 (no-op).
+                    Value::None => 0u32,
+                    other => {
+                        return Err(VmError::UnsupportedExpression {
+                            kind: format!("Context assignment target is not an object: {other:?}"),
+                            function: self.function_path.clone(),
+                        })
+                    }
+                };
+                let prop = self.eval(vm, prop_expr)?;
+                let prop_name = match prop {
+                    Value::String(s) => s,
+                    Value::Name(s) => s,
+                    Value::None => return Ok(()), // no property name yet, skip
+                    other => {
+                        return Err(VmError::UnsupportedExpression {
+                            kind: format!("Context property name must be string/name, got {other:?}"),
+                            function: self.function_path.clone(),
+                        })
+                    }
+                };
+                vm.set_object_property(object_id, &prop_name, value);
+                Ok(())
+            }
             ExprKind::MetaCast { value: inner, .. } => self.assign(vm, inner, value),
             _ => Err(VmError::UnsupportedExpression {
                 kind: format!(

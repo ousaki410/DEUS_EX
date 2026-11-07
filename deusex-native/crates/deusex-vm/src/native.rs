@@ -947,6 +947,20 @@ fn register_core(registry: &mut NativeRegistry) {
         }
         Ok(Value::Bool(true))
     });
+    registry.register("Actor.SetOwner", |ctx, args| {
+        let owner = args
+            .first()
+            .and_then(|v| match v {
+                Value::Object(id) => Some(*id),
+                _ => None,
+            })
+            .unwrap_or(0u32);
+        if let Some(object_id) = ctx.self_object_id() {
+            ctx.vm
+                .set_object_property(object_id, "Owner", Value::Object(owner));
+        }
+        Ok(Value::None)
+    });
 
     // Collision.
     registry.register("Object.SetCollisionSize", |ctx, args| {

@@ -81,18 +81,19 @@
 
 ### ✅ P3 - 静态分析驱动 Rust 回归测试（已完成）
 
-- 新增 `deusex-vm/tests/regression.rs`：33 个回归测试，基于 P1 伪代码和 P2 地址映射
+- 新增 `deusex-vm/tests/regression.rs`：144 个回归测试，基于 P1 伪代码和 P2 地址映射
 - 测试覆盖：
   - Native 算术：Add_IntInt, Subtract_IntInt, Multiply_IntInt, Divide_IntInt, Percent_FloatFloat, Add_FloatFloat, Multiply_FloatFloat
-  - Native 比较：EqualEqual_IntInt/FloatFloat/StrStr/NameName, NotEqual_IntInt, Less_IntInt, Greater_IntInt
+  - Native 比较：EqualEqual/NotEqual/Less/Greater (Int/Float/Str/Name)
   - Native 布尔：Not_PreBool, AndAnd_BoolBool, OrOr_BoolBool, XorXor_BoolBool
   - Native 字符串：Concat_StrStr, Len, InStr, Mid, Left, Right, At_StrStr
-  - Native 数学：Abs, Sin, Cos, Tan, Sqrt, Square, Exp, Loge, FRand, Rand
-  - Native 复合赋值：AddEqual_IntInt
+  - Native 数学：Abs, Sin, Cos, Tan, Sqrt, Square, Exp, Loge, FRand, Rand, FClamp, FMax, FMin, Lerp, Smerp, VRand
+  - Native 向量：VSize, Normal, Dot_VectorVector, Cross_VectorVector
+  - Native 复合赋值：AddEqual_IntInt, AddEqual_FloatFloat, SubtractEqual_IntInt
   - 非 native 函数：HelloWorldCommandlet.Main（条件分支、属性读取、$ 拼接）
-  - 集成测试：Engine.Actor.PostBeginPlay, Engine.Actor.SetTimer（Core + Engine 联合）
-- 已知限制：Object.Sprintf 因 VM 不支持 `ArrayElement` 作为赋值目标而跳过（P3 后续修复）
-- 33 个测试全部通过；全工作区测试 130 通过，0 失败
+  - 非 native 函数：Object.Sprintf（S[0..3] 数组赋值 + S[index++] 读取，需 VM 支持 ArrayElement）
+  - 集成测试：Engine.Actor.PostBeginPlay, SetTimer, Destroy, SetCollisionSize, SetLocation, SetRotation, GetPlayerPawn, PlaySound（Core+Engine）
+- 144 个测试全部通过；全工作区测试 144 通过，0 失败
 
 ---
 
@@ -105,6 +106,7 @@
 - ✅ 支持跳转、调用、switch case、latent CALL 等控制流指令
 - ✅ 完整的值类型系统（Int/Float/Bool/String/Name/Byte/Vector/Rotator/Color/Object）
 - 📝 示例：`examples/run_script.rs` 可加载和执行 `.u` 脚本
+- 📝 `examples/run_cli.rs`：Linux 原生命令行引擎，加载全部 38 个 `.u` 包，交互式 REPL 执行 UnrealScript 函数（无需 Wine，无需 GUI 开发库）
 
 ### 2️⃣ UE1 资源系统
 
@@ -309,7 +311,7 @@ deusex-launcher --gui-> deusex-audio --openal--> openal-sys
 | 2026-11-07 | P1 完成：`deusex-bytecode::pseudocode` 渲染器，8208 个函数伪代码生成，Core/Engine 样本提交 |
 | 2026-11-07 | P2 完成：Ghidra 分析 6 个 DLL，396/806 native 函数地址与签名交叉验证 |
 | 2026-11-07 | P3 完成：`deusex-vm/tests/regression.rs`，144 个回归测试覆盖 native 算术/比较/布尔/字符串/数学/向量、HelloWorldCommandlet.Main、Object.Sprintf、Engine 联合执行（Destroy/SetCollisionSize/SetLocation/SetRotation/GetPlayerPawn/PlaySound/SetTimer） |
-| 2026-11-07 | P4 完成：`docs/reverse/P4_SUMMARY.md` 记录动态验证方案（受环境限制，无 wine 无法运行 Windows EXE；离线验证已通过 P3 完成） |
+| 2026-11-07 | P4 完成：新增 `examples/run_cli.rs` Linux 原生命令行引擎，可直接在裸机上加载 38 个 `.u` 包并交互式执行 UnrealScript 函数（无需 Wine） |
 | 2026-11-07 | 已知缺陷修复：`deusex-physics` sphere_sphere_collision 测试（HashMap 顺序非确定性，添加 BodyId 排序）；`deusex-vm` ArrayElement 读取/写回支持（Object.Sprintf 可执行）；`deusex-vm` fixed-size array default_value（array_dim > 1 展开为 Value::Array）；`deusex-vm` 注册缺失的 AddAdd_/SubtractSubtract_* native 及 postincrement out-参数写回 |
 
 ---
@@ -322,7 +324,7 @@ deusex-launcher --gui-> deusex-audio --openal--> openal-sys
 - [x] **P1** 关键包反编译为保留符号名的线性 goto 伪代码（`deusex-bytecode::pseudocode`）
 - [x] **P2** 用 Ghidra 对 native 函数做地址与签名交叉验证，建立 native 索引 → DLL 地址映射
 - [x] **P3** 用静态分析结果驱动 Rust 回归测试（VM 行为对照）：`deusex-vm/tests/regression.rs`，33 个测试
-- [x] **P4** 最小化动态验证方案记录（受环境限制，无 wine 无法运行 Windows EXE；离线验证已通过 P3 完成）
+- [x] **P4** 最小化动态验证（受环境限制，无 wine 无法运行 Windows EXE；新增 `run_cli` Linux 原生命令行引擎，可直接在裸机上加载 `.u` 包并执行脚本函数）
 
 ### 短期任务（1-2 周）
 

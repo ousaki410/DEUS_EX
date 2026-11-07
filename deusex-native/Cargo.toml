@@ -13,6 +13,10 @@ path = "src/main.rs"
 name = "run_script"
 path = "examples/run_script.rs"
 
+[[example]]
+name = "run_cli"
+path = "examples/run_cli.rs"
+
 [dependencies]
 clap = { workspace = true }
 deusex-vm = { path = "crates/deusex-vm" }
