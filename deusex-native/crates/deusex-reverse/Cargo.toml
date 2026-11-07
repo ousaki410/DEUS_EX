@@ -1,0 +1,19 @@
+[package]
+name = "deusex-reverse"
+version = "0.1.0"
+edition = "2021"
+description = "Deus Ex Native - Reverse engineering tooling for UE1 .u packages"
+license = "MIT"
+
+[[bin]]
+name = "deusex-reverse"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+walkdir = { workspace = true }
+deusex-package = { path = "../deusex-package" }
+deusex-bytecode = { path = "../deusex-bytecode" }

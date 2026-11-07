@@ -20,6 +20,7 @@ deusex-physics
 deusex-ai
 deusex-game
 deusex-tools
+deusex-reverse
 deusex-launcher
 ```
 
@@ -801,6 +802,42 @@ assert_eq!(plan, Some(vec!["pickup_item", "use_item"]));
 
 ---
 
+### deusex-reverse
+
+**职责**: 零运行逆向工程工具（P0）
+
+**主要功能**:
+- 批量扫描目录内全部 UE1 `.u` 包
+- 类清单：名称、父类、outer、类 flags、native 标记
+- 属性清单：`UProperty` 链、类型、数组维度、flags、复制偏移
+- 函数签名：参数名/类型、返回值、`out`/`optional`/`skip`/`coerce`
+- State 内函数归因（`类.State.函数`）
+- 表达式树扫描：native / Final / Virtual / Global 调用与对象引用
+- 分支与 opcode 频率统计
+- 输出 Markdown、JSON manifest、CSV、Graphviz DOT
+
+**命令行**:
+```bash
+cd deusex-native
+cargo run --release -p deusex-reverse -- ../goty/app/system ../reverse_report --all
+# 只分析单个包：
+cargo run --release -p deusex-reverse -- ../goty/app/system ./out --filter Core --all
+```
+
+**产出位置**:
+- `docs/reverse/P0_SUMMARY.md`：P0 总结与关键发现
+- `docs/reverse/packages.csv`：包级统计
+- `docs/reverse/classes.csv`：类清单
+- `docs/reverse/properties.csv`：属性清单
+- `docs/reverse/functions.csv`：函数签名与调用统计
+- `docs/reverse/opcodes.csv`：全局 opcode 频率
+
+完整 Markdown/JSON/DOT 报告约 24MB，默认输出到 `reverse_report/` 且不纳入版本库。
+
+**状态**: ✅ 100% 完成（P0），为 P1 反编译提供输入
+
+---
+
 ### deusex-launcher
 
 **职责**: 游戏启动器
@@ -824,6 +861,7 @@ deusex-bytecode → deusex-ast
 deusex-vm       → deusex-bytecode, deusex-package
                  → deusex-runtime
 deusex-codegen   → deusex-bytecode, deusex-ast
+deusex-reverse   → deusex-package, deusex-bytecode
 deusex-launcher  → deusex-input, deusex-renderer, deusex-audio, deusex-vm
                  → (可选: deusex-game)
 ```
@@ -850,6 +888,13 @@ deusex-launcher  → deusex-input, deusex-renderer, deusex-audio, deusex-vm
 - [ ] deusex-ai（AI 系统）
 - [ ] deusex-physics（物理引擎）
 
+### 逆向分析阶段（P0 → P4）
+- [x] **P0** `deusex-reverse`：38 个 `.u` 批量解析，类/属性/函数/opcode 清单
+- [ ] **P1** 关键包反编译（`Core` / `Engine` / `DeusEx`）→ 伪代码清单
+- [ ] **P2** IDA/Ghidra 交叉验证 native 函数地址与签名
+- [ ] **P3** 静态分析驱动 Rust 回归测试
+- [ ] **P4** 最小化动态验证
+
 ---
 
 ## 📝 常见问题
@@ -868,4 +913,4 @@ A: 渲染模块需要完成基础后端的集成，目前框架已完成，等�
 
 ---
 
-**最后更新**: 2024-11-06
+**最后更新**: 2026-11-07

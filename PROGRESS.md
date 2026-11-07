@@ -4,8 +4,8 @@
 
 **Deus Ex GOTY / Revision** 的原生 Linux 移植项目（Rust 实现），基于 Unreal Engine 1 的游戏逻辑还原。
 
-- **状态**: 🟡 基础框架完成，Phase 2 媒体子系统 + 物理引擎已实现
-- **代码量**: ~30,000 行 Rust 代码
+- **状态**: 🟡 基础框架完成，Phase 2 媒体子系统 + 物理引擎已实现；P0 逆向清单已完成
+- **代码量**: ~30,000 行 Rust 代码（另有逆向工具 `deusex-reverse`）
 - **构建依赖**: Cargo nightly
 
 ---
@@ -39,7 +39,26 @@
 |------|---------|--------|------|
 | `deusex-game` | ~200 | 🟡 35% | 游戏主循环、固定步长 Tick（60Hz）、场景栈管理（push/pop/replace+enter/exit）、输入分发、渲染帧协调 |
 | `deusex-input` | ~300 | 🟡 85% | SDL3 输入处理、InputAction 枚举、InputBinding(按键绑定)、InputManager(动作查询/边缘检测/重新绑定)、默认 WASD 绑定 |
-| `deusex-ai` | 4 | ⚪ 0% | 占位（AI 行为树、移动寻路、交互） |
+
+### ✅ P0 - 逆向工程清单（已完成）
+
+| 模块 | 代码行数 | 完成度 | 说明 |
+|------|---------|--------|------|
+| `deusex-reverse` | ~1,300 | ✅ 100% | 零运行扫描 `.u`；类/父类/属性/函数签名、native 标志、opcode 统计、调用关系、Markdown/JSON/CSV/DOT 输出 |
+
+**P0 产出**（数据源 `goty/app/system`，38 个 `.u` 包）：
+
+| 指标 | 数值 |
+|------|-----:|
+| 类 | 1502 |
+| 类属性 | 7701 |
+| 函数 | 8208（其中 native 891） |
+| State 内函数 | 697 |
+| 脚本字节 | 771,561 |
+| 表达式节点 / opcode token | 300,039 |
+| 分支指令 | 20,446 |
+
+紧凑清单已提交到 `docs/reverse/`（`P0_SUMMARY.md`、`packages.csv`、`classes.csv`、`properties.csv`、`functions.csv`、`opcodes.csv`）；完整 Markdown/JSON/DOT 报告体积约 24MB，不纳入版本库。
 
 ---
 
@@ -144,6 +163,21 @@
   - ✅ `InputManager`: 动作查询（is_down/pressed/released）、边缘检测(update_edges)、默认 WASD 绑定、运行时重新绑定
   - ✅ SDL3 后端：键盘按下/释放、鼠标移动/按钮、窗口关闭
 
+### 6️⃣ P0 - 零运行逆向分析（新增）
+
+- 🔍 **deusex-reverse**:
+  - ✅ 批量扫描目录内全部 `.u` 包（38 个包约 3 秒完成）
+  - ✅ 导出类清单、父类、outer、类 flags、native 标记
+  - ✅ 解析 `UProperty` 链：属性名、类型、数组维度、flags、复制偏移
+  - ✅ 还原函数签名：参数名/类型、返回值、`out`/`optional`/`skip`/`coerce` 标志
+  - ✅ 修正 State 内函数归因：`DeusEx.AlarmUnit.Active.TakeDamage`
+  - ✅ 引用路径按“当前包导出 / import 顶层包”解析，避免错误前置 `Core.`
+  - ✅ 表达式树扫描：native 调用、Final/Virtual/Global 调用、对象引用、分支计数
+  - ✅ 全局与包级 opcode 频率统计
+  - ✅ 输出 Markdown、JSON manifest、CSV（函数/类/属性/包/opcode）、Graphviz DOT
+  - ✅ 7 个单元测试通过（`cargo test -p deusex-reverse`）
+  - 📝 为 P1（反编译关键包）与 P2（native 交叉验证）提供机器可读输入
+
 ---
 
 ## ⏳ 未实现的关键功能（优先级排序）
@@ -203,6 +237,8 @@ deusex-launcher --gui-> deusex-audio --openal--> openal-sys
 | `PROGRESS.md` (本文档) | 详细进度追踪 |
 | `CRATES.md` | 各 crate 详细说明 |
 | `AUDIENCE.md` | 设计意图与技术选型 |
+| `docs/reverse/P0_SUMMARY.md` | P0 逆向清单与统计 |
+| `docs/reverse/*.csv` | 包/类/属性/函数/opcode 机器可读清单 |
 
 ---
 
@@ -210,7 +246,8 @@ deusex-launcher --gui-> deusex-audio --openal--> openal-sys
 
 | 测试类型 | 状态 | 说明 |
 |---------|------|------|
-| 单元测试 | ⚠️ 部分完成 | `bytecode/`, `codegen/` 模块有测试；`integration/` 为空 |
+| 单元测试 | 🟡 部分完成 | 各 crate 自带单元测试；`deusex-reverse` 7 个测试全部通过 |
+| 真实包回归 | ✅ 已完成 | 38 个 `.u` 全部解析成功，无包级失败 |
 | 集成测试 | ⚪ 未实现 | nil tests |
 | 性能测试 | ⚪ 未实现 | nil |
 | CI/CD | ❌ 未配置 | GitHub Actions 待添加 |
@@ -233,11 +270,20 @@ deusex-launcher --gui-> deusex-audio --openal--> openal-sys
 | 2024-10 | 项目启动，创建 Rust 工作区 |
 | 2024-10-xx | 实现 `deusex-bytecode`, `deusex-vm` 核心模块 |
 | 2024-11-05 | 完成 `deusex-package`, `deusex-launcher` |
-| 2024-11-06 | 当前状态：阶段性成果文档记录完成 |
+| 2024-11-06 | 阶段性成果文档记录完成 |
+| 2026-11-07 | P0 完成：`deusex-reverse` 扫描 38 个 `.u`，类/属性/函数清单与 opcode 统计写入 `docs/reverse/` |
 
 ---
 
 ## 📋 待办事项
+
+### 逆向分析路线（当前重点）
+
+- [x] **P0** 批量解析全部 `.u`：包/类/属性/函数/opcode 清单
+- [ ] **P1** 用 `deusex-bytecode::decompile_package` 反编译 `Core`、`Engine`、`DeusEx` 等关键包，生成伪代码清单
+- [ ] **P2** 用 IDA/Ghidra 对 native 函数做交叉验证，记录地址与签名映射
+- [ ] **P3** 用静态分析结果驱动 Rust 回归测试（VM 行为对照）
+- [ ] **P4** 最小化动态验证（仅必要时启动游戏）
 
 ### 短期任务（1-2 周）
 
@@ -274,6 +320,14 @@ deusex-launcher --gui-> deusex-audio --openal--> openal-sys
 
 ## 📝 更新日志
 
+### 2026-11-07
+
+- 新增 `deusex-reverse` 逆向工程工具（零运行、批量解析 `.u`）
+- 完成 P0：38 个包全部解析成功，产出 1502 类、7701 属性、8208 函数、891 native
+- 生成并提交紧凑清单 `docs/reverse/`（总结 + 5 个 CSV）
+- 修正 State 内函数归因与跨包引用路径解析
+- `deusex-reverse` 7 个单元测试通过
+
 ### 2024-11-06
 
 - 创建 `PROGRESS.md` 作为项目的状态追踪文档
@@ -283,5 +337,5 @@ deusex-launcher --gui-> deusex-audio --openal--> openal-sys
 
 ---
 
-**最后更新**: 2024-11-06
+**最后更新**: 2026-11-07
 **维护者**: Deus Ex Native Team

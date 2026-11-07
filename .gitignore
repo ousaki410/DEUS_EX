@@ -27,6 +27,8 @@
 .DS_Store
 
 # Build artifacts
+/target/
+**/target/
 /target/debug/build/
 /target/release/build/
 
@@ -39,12 +41,46 @@ Cargo.lock
 logs/
 
 # Game data (large files, should not be committed)
+/goty/
+/Deus Ex - Revision (MOD)/
+/deus_ex_avatar/
+/deus_ex_manual/
+/deus_ex_newspaper_handout/
+/deus_ex_reference_card/
+/deus_ex_soundtrack/
+/deus_ex_wallpapers/
+deus_ex_*.zip
+deus_ex_*.torrent
+deus_ex_*_files.xml
+deus_ex_*_meta.sqlite
+deus_ex_*_meta.xml
+deus_ex_*_reviews.xml
+revision_full_achievements_list.zip
+DXR_*.pdf
+innoextract-*
 *.iso
 *.cue
 *.bin
 *.wad
 *.ut2
 *.ukx
+*.u
+*.uax
+*.umx
+*.utx
+*.dx
+*.zip
+*.pdf
+
+# Local reverse-engineering output
+/reverse_report/
+reverse_report/
+/docs/reverse/full/
+
+# Local scratch files
+/profiles.toml
+/readme.txt
+/test_bitflags.rs
 
 # Temporary files
 tmp/
