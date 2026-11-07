@@ -1146,3 +1146,152 @@ fn engine_actor_play_sound_native() {
     );
     assert!(matches!(result, Value::Int(_) | Value::None));
 }
+
+#[test]
+fn engine_actor_setbase_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Engine.Actor.SetBase(newBase: Actor) -> bool
+    let object = vm.create_object("Engine.Actor");
+    let result = exec_fn(
+        &mut vm,
+        "Engine.Actor.SetBase",
+        Some(object),
+        vec![Value::Object(object)],
+    );
+    assert_eq!(result, Value::Bool(true));
+}
+
+#[test]
+fn engine_actor_setphysics_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Engine.Actor.SetPhysics(newPhysics: byte) -> bool
+    let object = vm.create_object("Engine.Actor");
+    let result = exec_fn(
+        &mut vm,
+        "Engine.Actor.SetPhysics",
+        Some(object),
+        vec![Value::Byte(1)],
+    );
+    assert_eq!(result, Value::Bool(true));
+}
+
+#[test]
+fn engine_actor_trace_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Engine.Actor.Trace() -> Actor
+    // 在没有碰撞世界的情况下，返回 None
+    let object = vm.create_object("Engine.Actor");
+    let result = exec_fn(
+        &mut vm,
+        "Engine.Actor.Trace",
+        Some(object),
+        vec![
+            Value::Vector(glam::Vec3::ZERO),   // HitLocation (out)
+            Value::Vector(glam::Vec3::ZERO),   // HitNormal (out)
+            Value::Vector(glam::Vec3::new(100.0, 0.0, 0.0)), // TraceEnd
+            Value::Vector(glam::Vec3::new(0.0, 0.0, 0.0)),   // TraceStart
+            Value::Bool(true),                 // bTraceActors
+            Value::Vector(glam::Vec3::new(0.0, 0.0, 0.0)),   // Extent
+        ],
+    );
+    assert_eq!(result, Value::None);
+}
+
+#[test]
+fn core_object_vsize_normal_dot_cross() {
+    let Some(mut vm) = core_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Core.Object.VSize(Vector) -> float
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.VSize",
+        None,
+        vec![Value::Vector(glam::Vec3::new(3.0, 4.0, 0.0))],
+    );
+    assert!((result.as_float().unwrap() - 5.0).abs() < 0.01, "VSize should be 5.0");
+
+    // Core.Object.Normal(Vector) -> Vector
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.Normal",
+        None,
+        vec![Value::Vector(glam::Vec3::new(3.0, 4.0, 0.0))],
+    );
+    if let Value::Vector(v) = result {
+        assert!((v.x - 0.6).abs() < 0.01);
+        assert!((v.y - 0.8).abs() < 0.01);
+        assert!(v.z.abs() < 0.01);
+    } else {
+        panic!("Expected Vector, got {:?}", result);
+    }
+
+    // Core.Object.Dot_VectorVector(Vector, Vector) -> float
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.Dot_VectorVector",
+        None,
+        vec![
+            Value::Vector(glam::Vec3::new(1.0, 0.0, 0.0)),
+            Value::Vector(glam::Vec3::new(0.0, 1.0, 0.0)),
+        ],
+    );
+    assert!((result.as_float().unwrap() - 0.0).abs() < 0.01);
+
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.Dot_VectorVector",
+        None,
+        vec![
+            Value::Vector(glam::Vec3::new(1.0, 0.0, 0.0)),
+            Value::Vector(glam::Vec3::new(1.0, 0.0, 0.0)),
+        ],
+    );
+    assert!((result.as_float().unwrap() - 1.0).abs() < 0.01);
+
+    // Core.Object.Cross_VectorVector(Vector, Vector) -> Vector
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.Cross_VectorVector",
+        None,
+        vec![
+            Value::Vector(glam::Vec3::new(1.0, 0.0, 0.0)),
+            Value::Vector(glam::Vec3::new(0.0, 1.0, 0.0)),
+        ],
+    );
+    if let Value::Vector(v) = result {
+        assert!((v.x - 0.0).abs() < 0.01);
+        assert!((v.y - 0.0).abs() < 0.01);
+        assert!((v.z - 1.0).abs() < 0.01);
+    } else {
+        panic!("Expected Vector, got {:?}", result);
+    }
+}
+
+#[test]
+fn core_object_vrand_range() {
+    let Some(mut vm) = core_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Core.Object.VRand() -> Vector (单位向量)
+    for _ in 0..100 {
+        let result = exec_fn(&mut vm, "Core.Object.VRand", None, vec![]);
+        if let Value::Vector(v) = result {
+            let len = v.length();
+            assert!((len - 1.0).abs() < 0.01, "VRand should be unit vector");
+        } else {
+            panic!("Expected Vector, got {:?}", result);
+        }
+    }
+}
