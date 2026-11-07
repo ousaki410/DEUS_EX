@@ -311,8 +311,11 @@ impl<'a> ScriptReader<'a> {
                     }
                 }
                 Token::ARRAY_ELEMENT => {
-                    let array = self.parse_expr(depth + 1)?;
+                    // UE1 serializes the index first and the array object
+                    // second (`array[index]`). Confirmed against Engine.u
+                    // (`PRIArray[i]`, `MultiSkins[1]`).
                     let index = self.parse_expr(depth + 1)?;
+                    let array = self.parse_expr(depth + 1)?;
                     ExprKind::ArrayElement {
                         array: Box::new(array),
                         index: Box::new(index),

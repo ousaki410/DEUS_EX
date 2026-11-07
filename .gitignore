@@ -77,6 +77,12 @@ innoextract-*
 reverse_report/
 /docs/reverse/full/
 
+# P1 pseudocode output: keep only the compact index and the Core/Engine samples;
+# the full per-package output (~3.9 MB) stays in /tmp/opencode/p1_pseudo.
+/docs/reverse/pseudo/*.pseudo.md
+!/docs/reverse/pseudo/Core.pseudo.md
+!/docs/reverse/pseudo/Engine.pseudo.md
+
 # Local scratch files
 /profiles.toml
 /readme.txt

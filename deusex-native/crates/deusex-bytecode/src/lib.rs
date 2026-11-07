@@ -10,13 +10,14 @@ pub mod decompile;
 pub mod function;
 pub mod instructions;
 pub mod parser;
+pub mod pseudocode;
 
 pub use cfg::{build_cfg, BasicBlock, Cfg, Edge, EdgeKind, Terminator};
 pub use decompile::{
     decompile_function, decompile_package, decompile_to_rust_module, DecompileError,
-};pub use function::{
-    function_flags, Expr, ExprKind, Function,
 };
+pub use function::{function_flags, Expr, ExprKind, Function};
+pub use pseudocode::{render_function as render_pseudocode, NativeTable};
 pub use instructions::Token;
 pub use parser::{
     decode_script, parse_package_functions, read_function, BytecodeError,
