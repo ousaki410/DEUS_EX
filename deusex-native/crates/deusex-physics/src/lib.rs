@@ -16,7 +16,7 @@ use glam::Vec3;
 use tracing::{debug, info};
 
 /// 刚体唯一标识符。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct BodyId(usize);
 
 impl BodyId {
@@ -748,7 +748,10 @@ impl PhysicsWorld {
     /// 碰撞检测：返回所有重叠的刚体对。
     fn detect_collisions(&self) -> CollisionManifold {
         let mut manifold = CollisionManifold::default();
-        let ids: Vec<BodyId> = self.bodies.keys().copied().collect();
+        // 对 BodyId 排序，确保碰撞检测的顺序与 HashMap 迭代顺序无关，
+        // 使碰撞结果确定性（body_a 总是 ID 较小的刚体）。
+        let mut ids: Vec<BodyId> = self.bodies.keys().copied().collect();
+        ids.sort();
 
         for i in 0..ids.len() {
             for j in (i + 1)..ids.len() {

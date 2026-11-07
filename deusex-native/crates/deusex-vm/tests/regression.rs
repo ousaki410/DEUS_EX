@@ -713,6 +713,75 @@ fn hello_world_commandlet_main() {
     );
 }
 
+#[test]
+fn object_sprintf() {
+    let Some(mut vm) = core_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Object.Sprintf(fmt: string, s0: string?, s1: string?, s2: string?, s3: string?)
+    // P1 伪代码：
+    //   S[0] = s0; S[1] = s1; S[2] = s2; S[3] = s3;
+    //   index = 0; pos = 0; str = "";
+    //   L004C: pos = InStr(fmt, "%");
+    //   if (pos != -1) goto L0088;
+    //   str = str $ fmt; fmt = ""; goto L0118;
+    //   L0088: str = str $ Left(fmt, pos);
+    //   if (!(pos < Len(fmt) && Mid(fmt, pos + 1, 1) == "%")) goto L00DF;
+    //   str = str $ "%"; goto L00F9;
+    //   L00DF: str = str $ S[index++];
+    //   L00F9: fmt = Right(fmt, Len(fmt) - pos - 2);
+    //   L0118: if (!(pos == -1 || index == 4)) goto L004C;
+    //   if (fmt == "") goto L0153;
+    //   str = str $ fmt;
+    //   return str;
+
+    // 测试无格式化参数的情况
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.Sprintf",
+        None,
+        vec![
+            Value::String("plain text".into()),
+            Value::None,
+            Value::None,
+            Value::None,
+            Value::None,
+        ],
+    );
+    assert_eq!(result, Value::String("plain text".into()));
+
+    // 测试单个 %s 替换（涉及 S[0] = s0 及 S[index++] 读取）
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.Sprintf",
+        None,
+        vec![
+            Value::String("Value: %s".into()),
+            Value::String("42".into()),
+            Value::None,
+            Value::None,
+            Value::None,
+        ],
+    );
+    assert_eq!(result, Value::String("Value: 42".into()));
+
+    // 测试多个 %s 替换（连续多次 S[index++] 读取）
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.Sprintf",
+        None,
+        vec![
+            Value::String("%s + %s = %s".into()),
+            Value::String("1".into()),
+            Value::String("2".into()),
+            Value::String("3".into()),
+            Value::None,
+        ],
+    );
+    assert_eq!(result, Value::String("1 + 2 = 3".into()));
+}
+
 // ---------------------------------------------------------------------------
 // 8. 集成测试：Core + Engine 联合执行
 // ---------------------------------------------------------------------------

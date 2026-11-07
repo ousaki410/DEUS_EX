@@ -198,11 +198,14 @@ impl PackageUnit {
     }
 
     /// Default value for a variable reference, based on its property type.
+    ///
+    /// Fixed-size arrays (`array_dim > 1`) are expanded into a `Value::Array`
+    /// of the appropriate length so that `ArrayElement` assignment works.
     pub fn default_value(&self, reference: i32) -> Value {
         let Some(property) = self.property(reference) else {
             return Value::None;
         };
-        match property.class_name.as_str() {
+        let default = match property.class_name.as_str() {
             "StructProperty" => {
                 let type_name = self
                     .package
@@ -219,7 +222,13 @@ impl PackageUnit {
                 }
             }
             class_name => Value::default_for_property(class_name),
+        };
+        // Fixed-size arrays (e.g. `string S[4]`): array_dim > 1 means this is
+        // an array of `array_dim` elements, each initialized to `default`.
+        if property.array_dim > 1 {
+            return Value::Array(vec![default; property.array_dim as usize]);
         }
+        default
     }
 
     /// Resolve an instance variable reference to a dotted property path.

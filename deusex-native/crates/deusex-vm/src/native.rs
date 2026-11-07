@@ -585,6 +585,43 @@ fn register_core(registry: &mut NativeRegistry) {
             numeric_int(args.first()).wrapping_sub(numeric_int(args.get(1))),
         ))
     });
+    // Post-increment / post-decrement: return the old value; the VM bumps the
+    // out-parameter by +/-1 after the call (see is_postincrement handling in
+    // eval_native_call).
+    registry.register("Object.AddAdd_Int", |_ctx, args| {
+        Ok(Value::Int(numeric_int(args.first())))
+    });
+    registry.register("Object.AddAdd_Byte", |_ctx, args| {
+        Ok(Value::Byte(numeric_int(args.first()) as u8))
+    });
+    registry.register("Object.SubtractSubtract_Int", |_ctx, args| {
+        Ok(Value::Int(numeric_int(args.first())))
+    });
+    registry.register("Object.SubtractSubtract_Byte", |_ctx, args| {
+        Ok(Value::Byte(numeric_int(args.first()) as u8))
+    });
+    // Pre-increment / pre-decrement: return the new value; the VM writes it
+    // back via the compound-assignment path.
+    registry.register("Object.AddAdd_PreInt", |_ctx, args| {
+        Ok(Value::Int(
+            numeric_int(args.first()).wrapping_add(1),
+        ))
+    });
+    registry.register("Object.AddAdd_PreByte", |_ctx, args| {
+        Ok(Value::Byte(
+            numeric_int(args.first()).wrapping_add(1) as u8
+        ))
+    });
+    registry.register("Object.SubtractSubtract_PreInt", |_ctx, args| {
+        Ok(Value::Int(
+            numeric_int(args.first()).wrapping_sub(1),
+        ))
+    });
+    registry.register("Object.SubtractSubtract_PreByte", |_ctx, args| {
+        Ok(Value::Byte(
+            numeric_int(args.first()).wrapping_sub(1) as u8
+        ))
+    });
     registry.register("Object.MultiplyEqual_FloatFloat", |_ctx, args| {
         Ok(Value::Float(
             numeric_float(args.first()) * numeric_float(args.get(1)),

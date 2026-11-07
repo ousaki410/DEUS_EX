@@ -1124,12 +1124,27 @@ impl Frame {
             self.latent_resume_pc = self.pc + 1;
         }
 
-        // Compound-assignment intrinsics (`+=`, `*=`, ...) mutate their
-        // first argument; write the computed value back.
+        // Compound-assignment intrinsics (`+=`, `*=`, `AddAdd_Pre_*, ...`)
+        // mutate their first argument; write the computed value back.
         if is_compound_assignment(&name) {
             if let Some(target) = params.first() {
                 if is_assignable(target) {
                     self.assign(vm, target, result.clone())?;
+                }
+            }
+        }
+        // Post-increment / post-decrement: the native returns the old value;
+        // bump the out-parameter by +/-1 and write it back.
+        else if is_postincrement(&name) {
+            if let Some(target) = params.first() {
+                if is_assignable(target) {
+                    let old = result.as_int().unwrap_or(0);
+                    let incremented = if is_decrement(&name) {
+                        old.wrapping_sub(1)
+                    } else {
+                        old.wrapping_add(1)
+                    };
+                    self.assign(vm, target, Value::Int(incremented))?;
                 }
             }
         }
@@ -1476,6 +1491,38 @@ impl Frame {
                 self.self_object = previous;
                 result?
             }
+            ExprKind::ArrayElement { array, index }
+            | ExprKind::DynArrayElement { array, index } => {
+                let arr = self.eval(vm, array)?;
+                let idx = self.eval(vm, index)?
+                    .as_int()
+                    .ok_or_else(|| {
+                        VmError::UnsupportedExpression {
+                            kind: "array index must be an integer".to_string(),
+                            function: self.function_path.clone(),
+                        }
+                    })? as usize;
+                match &arr {
+                    Value::Array(elements) => {
+                        if idx >= elements.len() {
+                            return Err(VmError::UnsupportedExpression {
+                                kind: format!(
+                                    "array index {idx} out of bounds (len {})",
+                                    elements.len()
+                                ),
+                                function: self.function_path.clone(),
+                            });
+                        }
+                        elements[idx].clone()
+                    }
+                    _ => {
+                        return Err(VmError::UnsupportedExpression {
+                            kind: "array element target is not an array".to_string(),
+                            function: self.function_path.clone(),
+                        });
+                    }
+                }
+            }
             ExprKind::StructMember { struct_ref, value } => {
                 let member = self
                     .unit
@@ -1512,9 +1559,7 @@ impl Frame {
                 self.switch_value = Some(value.clone());
                 value
             }
-            ExprKind::ArrayElement { .. }
-            | ExprKind::DynArrayElement { .. }
-            | ExprKind::New(_)
+            ExprKind::New(_)
             | ExprKind::Iterator { .. }
             | ExprKind::Jump(_)
             | ExprKind::JumpIfNot { .. }
@@ -1566,6 +1611,40 @@ impl Frame {
                     });
                 }
                 self.assign(vm, base, base_value)
+            }
+            ExprKind::ArrayElement { array, index }
+            | ExprKind::DynArrayElement { array, index } => {
+                let mut arr = self.eval(vm, array)?;
+                let idx = self.eval(vm, index)?
+                    .as_int()
+                    .ok_or_else(|| {
+                        VmError::UnsupportedExpression {
+                            kind: "array index must be an integer".to_string(),
+                            function: self.function_path.clone(),
+                        }
+                    })? as usize;
+                match &mut arr {
+                    Value::Array(elements) => {
+                        if idx >= elements.len() {
+                            return Err(VmError::UnsupportedExpression {
+                                kind: format!(
+                                    "array index {idx} out of bounds (len {})",
+                                    elements.len()
+                                ),
+                                function: self.function_path.clone(),
+                            });
+                        }
+                        elements[idx] = value;
+                    }
+                    _ => {
+                        return Err(VmError::UnsupportedExpression {
+                            kind: "array element assignment target is not an array".to_string(),
+                            function: self.function_path.clone(),
+                        });
+                    }
+                }
+                // 将修改后的数组写回数组变量（例如 InstanceVariable(S)）
+                self.assign(vm, array, arr)
             }
             ExprKind::MetaCast { value: inner, .. } => self.assign(vm, inner, value),
             _ => Err(VmError::UnsupportedExpression {
@@ -1630,9 +1709,32 @@ fn iterator_out_index(name: &str) -> Option<usize> {
 /// is the approximate-equality operator and is deliberately excluded.
 fn is_compound_assignment(name: &str) -> bool {
     let short = name.rsplit('.').next().unwrap_or(name);
-    ["MultiplyEqual_", "DivideEqual_", "AddEqual_", "SubtractEqual_"]
-        .iter()
-        .any(|prefix| short.starts_with(prefix))
+    [
+        "MultiplyEqual_",
+        "DivideEqual_",
+        "AddEqual_",
+        "SubtractEqual_",
+        "AddAdd_Pre_",
+        "SubtractSubtract_Pre_",
+    ]
+    .iter()
+    .any(|prefix| short.starts_with(prefix))
+}
+
+/// Whether a native is a post-increment/post-decrement (`AddAdd_Int`,
+/// `AddAdd_Byte`, `SubtractSubtract_Int`, `SubtractSubtract_Byte`). These
+/// return the old value; the VM bumps the out-parameter by +/-1 after the
+/// call.
+fn is_postincrement(name: &str) -> bool {
+    let short = name.rsplit('.').next().unwrap_or(name);
+    short.starts_with("AddAdd_") || short.starts_with("SubtractSubtract_")
+}
+
+/// Whether a post-increment/decrement native decrements (rather than
+/// increments) its out-parameter.
+fn is_decrement(name: &str) -> bool {
+    name.rsplit('.').next() == Some("SubtractSubtract_Int")
+        || name.rsplit('.').next() == Some("SubtractSubtract_Byte")
 }
 
 /// Whether an expression can be used as an assignment target.
