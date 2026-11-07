@@ -1130,6 +1130,360 @@ fn register_core(registry: &mut NativeRegistry) {
         let key = args.first().map(Value::to_display_string).unwrap_or_default();
         Ok(Value::String(key))
     });
+
+    // ========================================================================
+    // Engine.Actor natives (core actor lifecycle / transform / query)
+    // ========================================================================
+
+    /// Engine.Actor.Destroy() -> bool
+    registry.register("Engine.Actor.Destroy", |ctx, _args| {
+        if let Some(object_id) = ctx.self_object_id() {
+            ctx.vm.destroy_object(object_id);
+        }
+        Ok(Value::Bool(true))
+    });
+
+    /// Engine.Actor.SetCollision(bCollide: bool) -> bool
+    registry.register("Engine.Actor.SetCollision", |ctx, args| {
+        let b_collide = args.first().map(Value::as_bool).unwrap_or(true);
+        if let Some(object_id) = ctx.self_object_id() {
+            ctx.vm.set_object_collision(object_id, b_collide);
+        }
+        Ok(Value::Bool(true))
+    });
+
+    /// Engine.Actor.SetBase(newBase: Actor) -> bool
+    registry.register("Engine.Actor.SetBase", |ctx, args| {
+        let new_base = args.first().and_then(|v| match v {
+            Value::Object(id) => Some(*id),
+            _ => None,
+        }).unwrap_or(0);
+        if let Some(object_id) = ctx.self_object_id() {
+            ctx.vm.set_object_property(object_id, "Base", Value::Object(new_base));
+        }
+        Ok(Value::Bool(true))
+    });
+
+    /// Engine.Actor.SetPhysics(newPhysics: byte) -> bool
+    registry.register("Engine.Actor.SetPhysics", |ctx, args| {
+        let new_physics = args.first().and_then(Value::as_int).unwrap_or(0) as u8;
+        if let Some(object_id) = ctx.self_object_id() {
+            ctx.vm.set_object_property(object_id, "Physics", Value::Byte(new_physics));
+        }
+        Ok(Value::Bool(true))
+    });
+
+    /// Engine.Actor.GetPlayerPawn() -> Pawn
+    registry.register("Engine.Actor.GetPlayerPawn", |ctx, _args| {
+        if let Some(object_id) = ctx.self_object_id() {
+            if let Some(obj) = ctx.vm.object(object_id) {
+                if obj.class_path.contains("Pawn") || obj.class_path.contains("PlayerPawn") {
+                    return Ok(Value::Object(object_id));
+                }
+            }
+        }
+        Ok(Value::None)
+    });
+
+    /// Engine.Actor.Trace() -> Actor
+    registry.register("Engine.Actor.Trace", |ctx, args| {
+        let hit_location = args.get(0).and_then(|v| match v {
+            Value::Vector(v) => Some(*v),
+            _ => None,
+        }).unwrap_or(glam::Vec3::ZERO);
+        let _hit_normal = args.get(1).and_then(|v| match v {
+            Value::Vector(v) => Some(*v),
+            _ => None,
+        }).unwrap_or(glam::Vec3::ZERO);
+        let trace_end = args.get(2).and_then(|v| match v {
+            Value::Vector(v) => Some(*v),
+            _ => None,
+        }).unwrap_or(glam::Vec3::ZERO);
+        let _trace_start = args.get(3).and_then(|v| match v {
+            Value::Vector(v) => Some(*v),
+            _ => None,
+        }).unwrap_or(glam::Vec3::ZERO);
+        let _b_trace_actors = args.get(4).map(Value::as_bool).unwrap_or(false);
+        let _extent = args.get(5).and_then(|v| match v {
+            Value::Vector(v) => Some(*v),
+            _ => None,
+        }).unwrap_or(glam::Vec3::ZERO);
+
+        // Stub: no collision world yet, return None.
+        Ok(Value::None)
+    });
+
+    /// Engine.Actor.SetLocation(NewLocation: Vector) -> bool
+    registry.register("Engine.Actor.SetLocation", |ctx, args| {
+        let location = args
+            .first()
+            .and_then(|v| match v {
+                Value::Vector(vec) => Some(*vec),
+                _ => None,
+            })
+            .unwrap_or(glam::Vec3::ZERO);
+        if let Some(object_id) = ctx.self_object_id() {
+            ctx.vm
+                .set_object_property(object_id, "Location", Value::Vector(location));
+        }
+        Ok(Value::Bool(true))
+    });
+
+    /// Engine.Actor.SetRotation(NewRotation: Rotator) -> bool
+    registry.register("Engine.Actor.SetRotation", |ctx, args| {
+        let rotation = args
+            .first()
+            .and_then(|v| match v {
+                Value::Rotator(rot) => Some(*rot),
+                _ => None,
+            })
+            .unwrap_or([0, 0, 0]);
+        if let Some(object_id) = ctx.self_object_id() {
+            ctx.vm
+                .set_object_property(object_id, "Rotation", Value::Rotator(rotation));
+        }
+        Ok(Value::Bool(true))
+    });
+
+    // ========================================================================
+    // Core.Object arithmetic / comparison / conversion operators
+    // ========================================================================
+
+    // Integer arithmetic
+    registry.register("Object.Add_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Int(left.wrapping_add(right)))
+    });
+    registry.register("Object.Subtract_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Int(left.wrapping_sub(right)))
+    });
+    registry.register("Object.Multiply_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Int(left.wrapping_mul(right)))
+    });
+    registry.register("Object.Divide_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Int(if right == 0 { 0 } else { left.wrapping_div(right) }))
+    });
+    registry.register("Object.Percent_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Int(if right == 0 { 0 } else { left.wrapping_rem(right) }))
+    });
+    registry.register("Object.And_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Int(left & right))
+    });
+    registry.register("Object.Or_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Int(left | right))
+    });
+    registry.register("Object.Xor_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Int(left ^ right))
+    });
+    registry.register("Object.Complement_PreInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Int(!left))
+    });
+    registry.register("Object.LessLess_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Int(left.wrapping_shl(right as u32)))
+    });
+    registry.register("Object.GreaterGreater_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Int(left.wrapping_shr(right as u32)))
+    });
+
+    // Integer comparisons
+    registry.register("Object.EqualEqual_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Bool(left == right))
+    });
+    registry.register("Object.NotEqual_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Bool(left != right))
+    });
+    registry.register("Object.Less_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Bool(left < right))
+    });
+    registry.register("Object.Greater_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Bool(left > right))
+    });
+    registry.register("Object.LessEqual_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Bool(left <= right))
+    });
+    registry.register("Object.GreaterEqual_IntInt", |_ctx, args| {
+        let left: i32 = args.first().and_then(Value::as_int).unwrap_or(0);
+        let right: i32 = args.get(1).and_then(Value::as_int).unwrap_or(0);
+        Ok(Value::Bool(left >= right))
+    });
+
+    // Float arithmetic
+    registry.register("Object.Add_FloatFloat", |_ctx, args| {
+        let left: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let right: f32 = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(left + right))
+    });
+    registry.register("Object.Subtract_FloatFloat", |_ctx, args| {
+        let left: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let right: f32 = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(left - right))
+    });
+    registry.register("Object.Multiply_FloatFloat", |_ctx, args| {
+        let left: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let right: f32 = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(left * right))
+    });
+    registry.register("Object.Divide_FloatFloat", |_ctx, args| {
+        let left: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let right: f32 = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(if right == 0.0 { 0.0 } else { left / right }))
+    });
+    registry.register("Object.Percent_FloatFloat", |_ctx, args| {
+        let left: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let right: f32 = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(if right == 0.0 { 0.0 } else { left % right }))
+    });
+
+    // Float comparisons
+    registry.register("Object.EqualEqual_FloatFloat", |_ctx, args| {
+        let left: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let right: f32 = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Bool(left == right))
+    });
+    registry.register("Object.NotEqual_FloatFloat", |_ctx, args| {
+        let left: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let right: f32 = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Bool(left != right))
+    });
+    registry.register("Object.Less_FloatFloat", |_ctx, args| {
+        let left: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let right: f32 = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Bool(left < right))
+    });
+    registry.register("Object.Greater_FloatFloat", |_ctx, args| {
+        let left: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let right: f32 = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Bool(left > right))
+    });
+    registry.register("Object.LessEqual_FloatFloat", |_ctx, args| {
+        let left: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let right: f32 = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Bool(left <= right))
+    });
+    registry.register("Object.GreaterEqual_FloatFloat", |_ctx, args| {
+        let left: f32 = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let right: f32 = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Bool(left >= right))
+    });
+
+    // String comparisons
+    registry.register("Object.EqualEqual_StrStr", |_ctx, args| {
+        let left: String = args.first().map(Value::to_display_string).unwrap_or_default();
+        let right: String = args.get(1).map(Value::to_display_string).unwrap_or_default();
+        Ok(Value::Bool(left == right))
+    });
+    registry.register("Object.NotEqual_StrStr", |_ctx, args| {
+        let left: String = args.first().map(Value::to_display_string).unwrap_or_default();
+        let right: String = args.get(1).map(Value::to_display_string).unwrap_or_default();
+        Ok(Value::Bool(left != right))
+    });
+    registry.register("Object.Less_StrStr", |_ctx, args| {
+        let left: String = args.first().map(Value::to_display_string).unwrap_or_default();
+        let right: String = args.get(1).map(Value::to_display_string).unwrap_or_default();
+        Ok(Value::Bool(left < right))
+    });
+    registry.register("Object.Greater_StrStr", |_ctx, args| {
+        let left: String = args.first().map(Value::to_display_string).unwrap_or_default();
+        let right: String = args.get(1).map(Value::to_display_string).unwrap_or_default();
+        Ok(Value::Bool(left > right))
+    });
+    registry.register("Object.LessEqual_StrStr", |_ctx, args| {
+        let left: String = args.first().map(Value::to_display_string).unwrap_or_default();
+        let right: String = args.get(1).map(Value::to_display_string).unwrap_or_default();
+        Ok(Value::Bool(left <= right))
+    });
+    registry.register("Object.GreaterEqual_StrStr", |_ctx, args| {
+        let left: String = args.first().map(Value::to_display_string).unwrap_or_default();
+        let right: String = args.get(1).map(Value::to_display_string).unwrap_or_default();
+        Ok(Value::Bool(left >= right))
+    });
+
+    // Name comparisons (case-insensitive like strings)
+    registry.register("Object.EqualEqual_NameName", |_ctx, args| {
+        let left: String = args.first().map(Value::to_display_string).unwrap_or_default().to_lowercase();
+        let right: String = args.get(1).map(Value::to_display_string).unwrap_or_default().to_lowercase();
+        Ok(Value::Bool(left == right))
+    });
+    registry.register("Object.NotEqual_NameName", |_ctx, args| {
+        let left: String = args.first().map(Value::to_display_string).unwrap_or_default().to_lowercase();
+        let right: String = args.get(1).map(Value::to_display_string).unwrap_or_default().to_lowercase();
+        Ok(Value::Bool(left != right))
+    });
+
+    // Object comparisons
+    registry.register("Object.EqualEqual_ObjectObject", |_ctx, args| {
+        let left: u32 = args.first().and_then(Value::as_object).unwrap_or(0);
+        let right: u32 = args.get(1).and_then(Value::as_object).unwrap_or(0);
+        Ok(Value::Bool(left == right))
+    });
+    registry.register("Object.NotEqual_ObjectObject", |_ctx, args| {
+        let left: u32 = args.first().and_then(Value::as_object).unwrap_or(0);
+        let right: u32 = args.get(1).and_then(Value::as_object).unwrap_or(0);
+        Ok(Value::Bool(left != right))
+    });
+
+    // Boolean operators
+    registry.register("Object.Not_PreBool", |_ctx, args| {
+        let left: bool = args.first().map(Value::as_bool).unwrap_or(false);
+        Ok(Value::Bool(!left))
+    });
+    registry.register("Object.AndAnd_BoolBool", |_ctx, args| {
+        let left: bool = args.first().map(Value::as_bool).unwrap_or(false);
+        let right: bool = args.get(1).map(Value::as_bool).unwrap_or(false);
+        Ok(Value::Bool(left && right))
+    });
+    registry.register("Object.OrOr_BoolBool", |_ctx, args| {
+        let left: bool = args.first().map(Value::as_bool).unwrap_or(false);
+        let right: bool = args.get(1).map(Value::as_bool).unwrap_or(false);
+        Ok(Value::Bool(left || right))
+    });
+    registry.register("Object.XorXor_BoolBool", |_ctx, args| {
+        let left: bool = args.first().map(Value::as_bool).unwrap_or(false);
+        let right: bool = args.get(1).map(Value::as_bool).unwrap_or(false);
+        Ok(Value::Bool(left ^ right))
+    });
+
+    // Concat / At string operators
+    registry.register("Object.Concat_StrStr", |_ctx, args| {
+        let left: String = args.first().map(Value::to_display_string).unwrap_or_default();
+        let right: String = args.get(1).map(Value::to_display_string).unwrap_or_default();
+        Ok(Value::String(format!("{left}{right}")))
+    });
+    registry.register("Object.At_StrStr", |_ctx, args| {
+        let left: String = args.first().map(Value::to_display_string).unwrap_or_default();
+        let right: String = args.get(1).map(Value::to_display_string).unwrap_or_default();
+        Ok(Value::String(format!("{left} {right}")))
+    });
 }
 
 #[cfg(test)]
