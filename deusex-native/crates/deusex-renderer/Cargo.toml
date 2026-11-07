@@ -12,3 +12,6 @@ tracing = { workspace = true }
 wgpu = { workspace = true }
 raw-window-handle = { workspace = true }
 bytemuck = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["rt", "time", "macros"] }

@@ -13,3 +13,8 @@ deusex-input = { path = "../deusex-input" }
 deusex-renderer = { path = "../deusex-renderer" }
 deusex-audio = { path = "../deusex-audio" }
 bytemuck = { workspace = true }
+
+[dev-dependencies]
+deusex-vm = { path = "../deusex-vm" }
+deusex-bytecode = { path = "../deusex-bytecode" }
+tokio = { version = "1.0", features = ["rt", "macros"] }

@@ -114,3 +114,80 @@ where
         f(rt.as_mut().unwrap())
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_runtime_new() {
+        let rt = Runtime::new();
+        assert!(rt.world.is_none());
+    }
+
+    #[test]
+    fn test_runtime_initialize() {
+        let mut rt = Runtime::new();
+        rt.initialize();
+        // Should have at least Object and Actor classes registered
+        assert!(rt.class_registry.find(Name::new("Object")).is_some());
+        assert!(rt.class_registry.find(Name::new("Actor")).is_some());
+    }
+
+    #[test]
+    fn test_object_creation() {
+        let mut rt = Runtime::new();
+        rt.initialize();
+
+        // Create an object through runtime
+        let class = rt.class_registry.find(Name::new("Object")).unwrap();
+        let obj = UObject::new(Name::new("TestObject"), class.clone());
+        assert!(obj.id().0 > 0);
+    }
+
+    #[test]
+    fn test_class_registry() {
+        let mut rt = Runtime::new();
+        rt.initialize();
+
+        assert!(rt.class_registry.find(Name::new("Object")).is_some());
+        assert!(rt.class_registry.find(Name::new("Actor")).is_some());
+        assert!(rt.class_registry.find(Name::new("NonExistent")).is_none());
+    }
+
+    #[test]
+    fn test_gc_collect() {
+        let mut rt = Runtime::new();
+        rt.initialize();
+        let object_class = rt.class_registry.find(Name::new("Object")).unwrap();
+
+        // Create some objects
+        with_runtime(|_rt| {
+            for i in 0..5 {
+                let _obj = UObject::new(
+                    Name::new(&format!("Obj{}", i)),
+                    object_class.clone(),
+                );
+                // Object will be dropped at end of loop iteration
+            }
+        });
+
+        // Force GC collection
+        rt.gc.collect();
+        // Should not panic - GC should handle gracefully
+    }
+
+    #[test]
+    fn test_name_table() {
+        let mut rt = Runtime::new();
+
+        let name1 = rt.name_table.add("TestName");
+        let name2 = rt.name_table.add("TestName");
+        let name3 = rt.name_table.add("OtherName");
+
+        // Same string should return same name id
+        assert_eq!(name1, name2);
+        // Different strings should return different name ids
+        assert_ne!(name1, name3);
+    }
+}

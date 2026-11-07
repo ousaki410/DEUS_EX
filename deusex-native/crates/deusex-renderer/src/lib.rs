@@ -652,3 +652,26 @@ impl Renderer {
         self.textures.len()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_gpu_init() {
+        // Gpu::new() should initialize a wgpu device and queue.
+        // In CI environments this may fall back to llvmpipe/software rendering.
+        let gpu = Gpu::new().await.expect("failed to create wgpu GPU");
+        // If we got here, device and queue were created successfully.
+        let _ = gpu;
+    }
+
+    #[test]
+    fn test_texture_id_null() {
+        let id = TextureId::null();
+        assert!(id.is_null());
+
+        let id = TextureId(1);
+        assert!(!id.is_null());
+    }
+}
