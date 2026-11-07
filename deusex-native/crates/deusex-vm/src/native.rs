@@ -833,6 +833,47 @@ fn register_core(registry: &mut NativeRegistry) {
         let value = (ctx.next_random() * limit as f32) as i32;
         Ok(Value::Int(value.min(limit - 1)))
     });
+    registry.register("Object.FClamp", |_ctx, args| {
+        let val = args
+            .first()
+            .and_then(Value::as_float)
+            .unwrap_or(0.0);
+        let min = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        let max = args.get(2).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(val.clamp(min, max)))
+    });
+    registry.register("Object.FMax", |_ctx, args| {
+        let a = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let b = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(a.max(b)))
+    });
+    registry.register("Object.FMin", |_ctx, args| {
+        let a = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let b = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(a.min(b)))
+    });
+    registry.register("Object.Lerp", |_ctx, args| {
+        let a = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let b = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        let alpha = args.get(2).and_then(Value::as_float).unwrap_or(0.0);
+        Ok(Value::Float(a + (b - a) * alpha))
+    });
+    registry.register("Object.Smerp", |_ctx, args| {
+        let a = args.first().and_then(Value::as_float).unwrap_or(0.0);
+        let b = args.get(1).and_then(Value::as_float).unwrap_or(0.0);
+        let alpha = args.get(2).and_then(Value::as_float).unwrap_or(0.0);
+        // Smooth step: alpha^2 * (3 - 2*alpha)
+        let s = alpha * alpha * (3.0 - 2.0 * alpha);
+        Ok(Value::Float(a + (b - a) * s))
+    });
+    registry.register("Object.VRand", |ctx, _args| {
+        // 返回单位长度的随机向量
+        let mut x = ctx.next_random() * 2.0 - 1.0;
+        let mut y = ctx.next_random() * 2.0 - 1.0;
+        let mut z = ctx.next_random() * 2.0 - 1.0;
+        let v = glam::Vec3::new(x, y, z);
+        Ok(Value::Vector(v.normalize_or_zero()))
+    });
 
     // State machine.
     registry.register("Object.GetStateName", |ctx, _args| {
@@ -877,6 +918,34 @@ fn register_core(registry: &mut NativeRegistry) {
             ctx.vm.destroy_object(object_id);
         }
         Ok(Value::None)
+    });
+    registry.register("Engine.Actor.SetLocation", |ctx, args| {
+        let location = args
+            .first()
+            .and_then(|v| match v {
+                Value::Vector(vec) => Some(*vec),
+                _ => None,
+            })
+            .unwrap_or(glam::Vec3::ZERO);
+        if let Some(object_id) = ctx.self_object_id() {
+            ctx.vm
+                .set_object_property(object_id, "Location", Value::Vector(location));
+        }
+        Ok(Value::Bool(true))
+    });
+    registry.register("Engine.Actor.SetRotation", |ctx, args| {
+        let rotation = args
+            .first()
+            .and_then(|v| match v {
+                Value::Rotator(rot) => Some(*rot),
+                _ => None,
+            })
+            .unwrap_or([0, 0, 0]);
+        if let Some(object_id) = ctx.self_object_id() {
+            ctx.vm
+                .set_object_property(object_id, "Rotation", Value::Rotator(rotation));
+        }
+        Ok(Value::Bool(true))
     });
 
     // Collision.
@@ -965,6 +1034,11 @@ fn register_core(registry: &mut NativeRegistry) {
         } else {
             Ok(Value::None)
         }
+    });
+
+    // Sound playback (stub: no audio backend yet, returns 0).
+    registry.register("Engine.Actor.PlaySound", |_ctx, _args| {
+        Ok(Value::Int(0))
     });
 
     // Object identity and class queries.

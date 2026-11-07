@@ -1,14 +1,11 @@
 //! P3 回归测试：用静态分析结果驱动 Rust VM 行为对照。
 //!
 //! 测试覆盖：
-//! 1. Core.u 中 P2 已验证地址的 native 函数（算术、比较、布尔、字符串、数学）
-//! 2. Core.u 中 P1 伪代码揭示逻辑的非 native 函数（HelloWorldCommandlet.Main）
-//! 3. Core + Engine 联合集成测试
-//!
-//! 已知限制（VM 未实现，测试跳过）：
-//! - Object.Sprintf：VM 的 `assign` 不支持 `ArrayElement` 作为赋值目标，
-//!   导致 `S[index] = value` 无法执行（P1 伪代码中明确使用此模式）。
-//! - 此限制将在 P3 后续阶段随 VM 扩展而修复。
+//! 1. Core.u 中 P2 已验证地址的 native 函数（算术、比较、布尔、字符串、数学、向量）
+//! 2. Core.u 中 P1 伪代码揭示逻辑的非 native 函数（HelloWorldCommandlet.Main, Object.Sprintf）
+//! 3. Engine.u 中 P2 已验证地址的 native 函数（Destroy, SetCollisionSize, SetLocation,
+//!    SetRotation, GetPlayerPawn, PlaySound, SetTimer）
+//! 4. Core + Engine 联合集成测试
 //!
 //! 所有测试在 GOTY 资源不可用时自动跳过；游戏资源从不纳入版本库。
 
@@ -813,4 +810,339 @@ fn engine_actor_settimer_native() {
         vec![Value::Float(1.0), Value::Bool(true)],
     );
     assert_eq!(result, Value::None);
+}
+
+// ---------------------------------------------------------------------------
+// 9. Core 数学/向量函数扩展（P2 地址已验证）
+// ---------------------------------------------------------------------------
+
+#[test]
+fn native_fclamp_fmax_fmin() {
+    let Some(mut vm) = core_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // FClamp(Val, Min, Max)
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.FClamp",
+        None,
+        vec![Value::Float(0.5), Value::Float(0.0), Value::Float(1.0)],
+    );
+    assert!(float_eq(result.as_float().unwrap(), 0.5));
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.FClamp",
+        None,
+        vec![Value::Float(-5.0), Value::Float(0.0), Value::Float(1.0)],
+    );
+    assert!(float_eq(result.as_float().unwrap(), 0.0));
+    // FMax / FMin
+    let result = exec_fn(&mut vm, "Core.Object.FMax", None, vec![Value::Float(3.0), Value::Float(7.0)]);
+    assert!(float_eq(result.as_float().unwrap(), 7.0));
+    let result = exec_fn(&mut vm, "Core.Object.FMin", None, vec![Value::Float(3.0), Value::Float(7.0)]);
+    assert!(float_eq(result.as_float().unwrap(), 3.0));
+}
+
+#[test]
+fn native_lerp_smerp() {
+    let Some(mut vm) = core_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Lerp(A, B, Alpha) = A + (B - A) * Alpha
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.Lerp",
+        None,
+        vec![Value::Float(0.0), Value::Float(10.0), Value::Float(0.5)],
+    );
+    assert!(float_eq(result.as_float().unwrap(), 5.0));
+    // Smerp(0, 1, 0.5) ≈ 0.5 (平滑插值)
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.Smerp",
+        None,
+        vec![Value::Float(0.0), Value::Float(1.0), Value::Float(0.5)],
+    );
+    assert!((result.as_float().unwrap() - 0.5).abs() < 0.01);
+}
+
+#[test]
+fn native_atan_exp_loge() {
+    let Some(mut vm) = core_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Atan(0) = 0
+    let result = exec_fn(&mut vm, "Core.Object.Atan", None, vec![Value::Float(0.0)]);
+    assert!(float_eq(result.as_float().unwrap(), 0.0));
+    // Exp(1) = e ≈ 2.718
+    let result = exec_fn(&mut vm, "Core.Object.Exp", None, vec![Value::Float(1.0)]);
+    assert!((result.as_float().unwrap() - 2.71828).abs() < 0.01);
+    // Loge(e) = 1
+    let result = exec_fn(&mut vm, "Core.Object.Loge", None, vec![Value::Float(2.71828)]);
+    assert!((result.as_float().unwrap() - 1.0).abs() < 0.01);
+}
+
+#[test]
+fn native_vsize_normal_dot_cross() {
+    let Some(mut vm) = core_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // VSize(3, 4, 0) = 5
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.VSize",
+        None,
+        vec![Value::Vector(glam::Vec3::new(3.0, 4.0, 0.0))],
+    );
+    assert!(float_eq(result.as_float().unwrap(), 5.0));
+    // Normal(3, 4, 0) = (0.6, 0.8, 0)
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.Normal",
+        None,
+        vec![Value::Vector(glam::Vec3::new(3.0, 4.0, 0.0))],
+    );
+    if let Value::Vector(v) = result {
+        assert!(float_eq(v.x, 0.6));
+        assert!(float_eq(v.y, 0.8));
+        assert!(float_eq(v.z, 0.0));
+    } else {
+        panic!("Expected Vector, got {result:?}");
+    }
+    // Dot_VectorVector((1,0,0), (0,1,0)) = 0
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.Dot_VectorVector",
+        None,
+        vec![
+            Value::Vector(glam::Vec3::new(1.0, 0.0, 0.0)),
+            Value::Vector(glam::Vec3::new(0.0, 1.0, 0.0)),
+        ],
+    );
+    assert!(float_eq(result.as_float().unwrap(), 0.0));
+    // Dot_VectorVector((1,0,0), (1,0,0)) = 1
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.Dot_VectorVector",
+        None,
+        vec![
+            Value::Vector(glam::Vec3::new(1.0, 0.0, 0.0)),
+            Value::Vector(glam::Vec3::new(1.0, 0.0, 0.0)),
+        ],
+    );
+    assert!(float_eq(result.as_float().unwrap(), 1.0));
+    // Cross_VectorVector((1,0,0), (0,1,0)) = (0,0,1)
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.Cross_VectorVector",
+        None,
+        vec![
+            Value::Vector(glam::Vec3::new(1.0, 0.0, 0.0)),
+            Value::Vector(glam::Vec3::new(0.0, 1.0, 0.0)),
+        ],
+    );
+    if let Value::Vector(v) = result {
+        assert!(float_eq(v.x, 0.0));
+        assert!(float_eq(v.y, 0.0));
+        assert!(float_eq(v.z, 1.0));
+    } else {
+        panic!("Expected Vector, got {result:?}");
+    }
+}
+
+#[test]
+fn native_vrand_range() {
+    let Some(mut vm) = core_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // VRand 返回单位随机向量
+    for _ in 0..100 {
+        let result = exec_fn(&mut vm, "Core.Object.VRand", None, vec![]);
+        if let Value::Vector(v) = result {
+            let len = v.length();
+            assert!((len - 1.0).abs() < 0.01, "VRand not unit length: {len}");
+        } else {
+            panic!("Expected Vector, got {result:?}");
+        }
+    }
+}
+
+#[test]
+fn native_addequal_floatsubtractequal_int() {
+    let Some(mut vm) = core_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // AddEqual_FloatFloat(out A, B) -> A + B
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.AddEqual_FloatFloat",
+        None,
+        vec![Value::Float(3.5), Value::Float(2.5)],
+    );
+    assert!(float_eq(result.as_float().unwrap(), 6.0));
+    // SubtractEqual_IntInt(out A, B) -> A - B
+    let result = exec_fn(
+        &mut vm,
+        "Core.Object.SubtractEqual_IntInt",
+        None,
+        vec![Value::Int(10), Value::Int(3)],
+    );
+    assert_eq!(result, Value::Int(7));
+}
+
+#[test]
+fn native_greaterequal_lessequal_int() {
+    let Some(mut vm) = core_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    assert_eq!(
+        exec_fn(
+            &mut vm,
+            "Core.Object.GreaterEqual_IntInt",
+            None,
+            vec![Value::Int(5), Value::Int(5)]
+        ),
+        Value::Bool(true)
+    );
+    assert_eq!(
+        exec_fn(
+            &mut vm,
+            "Core.Object.GreaterEqual_IntInt",
+            None,
+            vec![Value::Int(5), Value::Int(6)]
+        ),
+        Value::Bool(false)
+    );
+    assert_eq!(
+        exec_fn(
+            &mut vm,
+            "Core.Object.LessEqual_IntInt",
+            None,
+            vec![Value::Int(3), Value::Int(3)]
+        ),
+        Value::Bool(true)
+    );
+    assert_eq!(
+        exec_fn(
+            &mut vm,
+            "Core.Object.LessEqual_IntInt",
+            None,
+            vec![Value::Int(5), Value::Int(3)]
+        ),
+        Value::Bool(false)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 10. Engine native 函数（P2 地址已验证）
+// ---------------------------------------------------------------------------
+
+#[test]
+fn engine_actor_destroy_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Engine.Actor.Destroy() - native，索引 279，返回 None (VM 中销毁对象后无返回值)
+    let object = vm.create_object("Engine.Actor");
+    let result = exec_fn(&mut vm, "Engine.Actor.Destroy", Some(object), vec![]);
+    assert_eq!(result, Value::None);
+}
+
+#[test]
+fn engine_actor_setcollisionsize_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Engine.Actor.SetCollisionSize(NewRadius: float, NewHeight: float) - native，索引 283
+    // VM 中返回 None (无返回值)
+    let object = vm.create_object("Engine.Actor");
+    let result = exec_fn(
+        &mut vm,
+        "Engine.Actor.SetCollisionSize",
+        Some(object),
+        vec![Value::Float(16.0), Value::Float(32.0)],
+    );
+    assert_eq!(result, Value::None);
+}
+
+#[test]
+fn engine_actor_setlocation_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Engine.Actor.SetLocation(NewLocation: Vector) - native，索引 267
+    let object = vm.create_object("Engine.Actor");
+    let result = exec_fn(
+        &mut vm,
+        "Engine.Actor.SetLocation",
+        Some(object),
+        vec![Value::Vector(glam::Vec3::new(100.0, 200.0, 300.0))],
+    );
+    assert_eq!(result, Value::Bool(true));
+}
+
+#[test]
+fn engine_actor_setrotation_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Engine.Actor.SetRotation(NewRotation: Rotator) - native，索引 299
+    let object = vm.create_object("Engine.Actor");
+    let result = exec_fn(
+        &mut vm,
+        "Engine.Actor.SetRotation",
+        Some(object),
+        vec![Value::Rotator([0, 0, 0])],
+    );
+    assert_eq!(result, Value::Bool(true));
+}
+
+#[test]
+fn engine_actor_getplayerpawn_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Engine.Actor.GetPlayerPawn() - native，索引 720，返回 PlayerPawn 对象
+    // 在没有游戏世界的情况下，可能返回 None 对象引用
+    let object = vm.create_object("Engine.Actor");
+    let result = exec_fn(&mut vm, "Engine.Actor.GetPlayerPawn", Some(object), vec![]);
+    // 返回 Object 类型（None 或对象 ID）
+    assert!(matches!(result, Value::Object(_) | Value::None));
+}
+
+#[test]
+fn engine_actor_play_sound_native() {
+    let Some(mut vm) = core_engine_vm() else {
+        eprintln!("skipping: Deus Ex GOTY assets not found");
+        return;
+    };
+    // Engine.Actor.PlaySound(Sound: Sound, Slot: ESoundSlot?, Volume: float?, ...)
+    // 在没有 Sound 对象的情况下，传入 None 作为 Sound 参数
+    let object = vm.create_object("Engine.Actor");
+    let result = exec_fn(
+        &mut vm,
+        "Engine.Actor.PlaySound",
+        Some(object),
+        vec![
+            Value::None,       // Sound
+            Value::Byte(0),    // Slot (ESoundSlot)
+            Value::Float(1.0), // Volume
+            Value::Bool(false), // bNoOverride
+            Value::Float(0.0), // Radius
+            Value::Float(1.0), // Pitch
+        ],
+    );
+    assert!(matches!(result, Value::Int(_) | Value::None));
 }
