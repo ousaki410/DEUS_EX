@@ -14,7 +14,6 @@
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
-use raw_window_handle::HasRawWindowHandle as _;
 
 /// Discovered game installation (GOTY or Revision).
 #[derive(Debug)]
