@@ -834,7 +834,7 @@ cargo run --release -p deusex-reverse -- ../goty/app/system ./out --filter Core 
 
 完整 Markdown/JSON/DOT 报告约 24MB，默认输出到 `reverse_report/` 且不纳入版本库。
 
-**状态**: ✅ 100% 完成（P0），为 P1 反编译提供输入
+**状态**: ✅ 100% 完成（P0/P1），为 P2 native 交叉验证提供输入
 
 ---
 
@@ -890,8 +890,8 @@ deusex-launcher  → deusex-input, deusex-renderer, deusex-audio, deusex-vm
 
 ### 逆向分析阶段（P0 → P4）
 - [x] **P0** `deusex-reverse`：38 个 `.u` 批量解析，类/属性/函数/opcode 清单
-- [ ] **P1** 关键包反编译（`Core` / `Engine` / `DeusEx`）→ 伪代码清单
-- [ ] **P2** IDA/Ghidra 交叉验证 native 函数地址与签名
+- [x] **P1** 关键包反编译（`Core` / `Engine` / `DeusEx`）→ 伪代码清单（`deusex-bytecode::pseudocode`）
+- [x] **P2** Ghidra 交叉验证 native 函数地址与签名（396/806 已验证）
 - [ ] **P3** 静态分析驱动 Rust 回归测试
 - [ ] **P4** 最小化动态验证
 

@@ -1,0 +1,13 @@
+native_index,package,full_name,signature,dll,gnatives_idx,vma,exec_name
+146,Core,Core.Object.Add_IntInt,"static function int Add_IntInt(A: int, B: int)",Core,85,0x10103044,execAdd_IntInt
+129,Core,Core.Object.Not_PreBool,"static function bool Not_PreBool(A: bool)",Core,66,0x10101604,execNot_PreBool
+254,Core,Core.Object.EqualEqual_NameName,"static function bool EqualEqual_NameName(A: name, B: name)",Core,210,0x101014ce,execEqualEqual_NameName
+264,Engine,Engine.Actor.PlaySound,"function int PlaySound(Sound: Sound, Slot: ESoundSlot?, Volume: float?, bNoOverride: bool?, Radius: float?, Pitch: float?)",Engine,70,0x10302612,execPlaySound
+278,Engine,Engine.Actor.Spawn,"function Actor Spawn(SpawnClass: class<Class>, SpawnOwner: Actor?, SpawnTag: name?, SpawnLocation: Vector?, SpawnRotation: Rotator?)",Engine,73,0x103011ef,execSpawn
+279,Engine,Engine.Actor.Destroy,"function bool Destroy()",Engine,72,0x10302324,execDestroy
+280,Engine,Engine.Actor.SetTimer,"function void SetTimer(NewTimerRate: float, bLoop: bool)",Engine,71,0x103012d5,execSetTimer
+112,Core,Core.Object.Concat_StrStr,"static function string Concat_StrStr(A: string, B: string)",Core,193,0x1010187a,execConcat_StringString
+123,Core,Core.Object.NotEqual_StrStr,"static function bool NotEqual_StrStr(A: string, B: string)",Core,202,0x1010197c,execNotEqual_StringString
+122,Core,Core.Object.EqualEqual_StrStr,"static function bool EqualEqual_StrStr(A: string, B: string)",Core,199,0x10101b81,execEqualEqual_StringString
+186,Core,Core.Object.Abs,"static function float Abs(A: float)",Core,128,0x10102d01,execAbs
+165,Core,Core.Object.AddAdd_Int,"static function int AddAdd_Int(out A: int)",Core,104,0x10102e14,execAddAdd_Int

@@ -4,7 +4,7 @@
 
 **Deus Ex GOTY / Revision** 的原生 Linux 移植项目（Rust 实现），基于 Unreal Engine 1 的游戏逻辑还原。
 
-- **状态**: 🟡 基础框架完成，Phase 2 媒体子系统 + 物理引擎已实现；P0 逆向清单已完成
+- **状态**: 🟡 基础框架完成，Phase 2 媒体子系统 + 物理引擎已实现；P0/P1/P2 逆向分析阶段已完成
 - **代码量**: ~30,000 行 Rust 代码（另有逆向工具 `deusex-reverse`）
 - **构建依赖**: Cargo nightly
 
@@ -59,6 +59,25 @@
 | 分支指令 | 20,446 |
 
 紧凑清单已提交到 `docs/reverse/`（`P0_SUMMARY.md`、`packages.csv`、`classes.csv`、`properties.csv`、`functions.csv`、`opcodes.csv`）；完整 Markdown/JSON/DOT 报告体积约 24MB，不纳入版本库。
+
+### ✅ P1 - 关键包反编译（已完成）
+
+- `deusex-bytecode::pseudocode`：保留符号名的线性 goto 伪代码渲染器（局部变量、属性、对象路径、native 名称、常见运算符）
+- 修正 `ArrayElement` 操作数顺序：索引在前、数组在后
+- native 桩函数渲染为声明（`; // native index N`），不渲染参数读取语句
+- `JumpIfNot` 条件做否定化简；`Assert` 渲染为源码行号；`Case(0xFFFF)` 作为 default 分支
+- 生成全部 38 个包、8208 个函数、约 10.8 万行伪代码
+- 提交 `docs/reverse/P1_SUMMARY.md`、`pseudo/index.csv`、`pseudo/SUMMARY.md`、`Core.pseudo.md`、`Engine.pseudo.md`
+- 完整输出保留在 `/tmp/opencode/p1_pseudo/`，复现命令见 `P1_SUMMARY.md`
+
+### ✅ P2 - Native 函数地址与签名交叉验证（已完成）
+
+- 使用 Ghidra Headless Analyzer 分析 6 个关键 DLL：Core、Engine、DeusEx、Extension、ConSys、DeusExText
+- 在每个 DLL 数据段中定位 `GNatives` 函数指针数组，反解为函数入口地址
+- 通过函数名模糊匹配，将 P1 native 清单与二进制地址关联：396/806 (49%) 已验证
+- Core 150/154 (97%)、Engine 105/119 (88%)、DeusExText 12/12 (100%)、DeusEx 21/57、ConSys 7/11、Extension 101/453
+- 提交 `docs/reverse/P2_SUMMARY.md`、`docs/reverse/p2_sample.csv`
+- 完整映射表保留在 `/tmp/opencode/p2_native_mapping.csv`
 
 ---
 
@@ -272,6 +291,8 @@ deusex-launcher --gui-> deusex-audio --openal--> openal-sys
 | 2024-11-05 | 完成 `deusex-package`, `deusex-launcher` |
 | 2024-11-06 | 阶段性成果文档记录完成 |
 | 2026-11-07 | P0 完成：`deusex-reverse` 扫描 38 个 `.u`，类/属性/函数清单与 opcode 统计写入 `docs/reverse/` |
+| 2026-11-07 | P1 完成：`deusex-bytecode::pseudocode` 渲染器，8208 个函数伪代码生成，Core/Engine 样本提交 |
+| 2026-11-07 | P2 完成：Ghidra 分析 6 个 DLL，396/806 native 函数地址与签名交叉验证 |
 
 ---
 
@@ -280,8 +301,8 @@ deusex-launcher --gui-> deusex-audio --openal--> openal-sys
 ### 逆向分析路线（当前重点）
 
 - [x] **P0** 批量解析全部 `.u`：包/类/属性/函数/opcode 清单
-- [ ] **P1** 用 `deusex-bytecode::decompile_package` 反编译 `Core`、`Engine`、`DeusEx` 等关键包，生成伪代码清单
-- [ ] **P2** 用 IDA/Ghidra 对 native 函数做交叉验证，记录地址与签名映射
+- [x] **P1** 关键包反编译为保留符号名的线性 goto 伪代码（`deusex-bytecode::pseudocode`）
+- [x] **P2** 用 Ghidra 对 native 函数做地址与签名交叉验证，建立 native 索引 → DLL 地址映射
 - [ ] **P3** 用静态分析结果驱动 Rust 回归测试（VM 行为对照）
 - [ ] **P4** 最小化动态验证（仅必要时启动游戏）
 
